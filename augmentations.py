@@ -17,10 +17,11 @@ Unless you are interested in the internals of augmentations with bounding boxes,
 """
 
 import numpy as np
+import cv2
 
 from keras.preprocessing.image import *
 
-from util import *
+from utils import *
 
 def random_transform_with_vertices(x, vertices,
                                    rg,

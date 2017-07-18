@@ -32,14 +32,18 @@ The loss function contains completely symmetrical code to slice the data out of 
 """
 
 import numpy as np
+import cv2
 
-from utils import parse_image_label_pair, parse_labels
+from parser import parse_image_label_pairs, parse_labels
 from preprocessing import preprocess_yolo
+from utils import wh_to_minmax, minmax_to_wh
+from augmentations import augment
 
 class Augmenter:
     
     def __init__(self, data_path, 
                  in_x, in_y, out_x, out_y,
+                 B, C, 
                  batch_size = 2, config = None):
         
         # misc
@@ -52,6 +56,10 @@ class Augmenter:
         self.out_x = out_x
         self.out_y = out_y
         
+        # number of anchor boxes and classes
+        self.B = B
+        self.C = C
+        
         # config for the augmentation
         if not config:
             config={}
@@ -59,7 +67,7 @@ class Augmenter:
             config["max_rotation"]=10
             config["max_shift"]=0.05
             config["zoom_range"]=(0.8,1.2)
-        self.config
+        self.config = config
         
         # get a list of pairs of (image_path, label_path)
         self.image_label_pairs=parse_image_label_pairs(data_path)
@@ -74,6 +82,14 @@ class Augmenter:
         batch_size = self.batch_size
         config = self.config
         image_label_pairs= self.image_label_pairs
+        
+        in_x = self.in_x
+        in_y = self.in_y
+        out_x = self.out_x
+        out_y = self.out_y
+        
+        B = self.B
+        C = self.C
         
         # batch to store the images
         batch = np.zeros((batch_size, in_x, in_y, 3))
