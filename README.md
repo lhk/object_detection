@@ -2,8 +2,8 @@
 This is a port of [YOLO](https://pjreddie.com/darknet/) to tensorflow and keras.
 
 There are many existing ports, such as:
-https://github.com/allanzelener/YAD2K
-https://github.com/thtrieu/darkflow
+ - https://github.com/allanzelener/YAD2K
+ - https://github.com/thtrieu/darkflow
 
 Most of the existing ports are much more feature complete.
 
