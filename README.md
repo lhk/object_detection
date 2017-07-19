@@ -3,4 +3,4 @@
 # sample results
 
 Motorbikes and a person
-![motorbikes and person](http://imgur.com/a/zkJ4Z "")
+![motorbikes and person](http://i.imgur.com/bzpdub5.png "")
