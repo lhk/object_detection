@@ -21,7 +21,8 @@ import cv2
 
 from keras.preprocessing.image import *
 
-from utils import *
+from bbox_utils import vertices_to_boxes, boxes_to_vertices
+from object_utils import split, merge
 
 def random_transform_with_vertices(x, vertices,
                                    rg,

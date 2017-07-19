@@ -36,7 +36,7 @@ import cv2
 
 from parser import parse_image_label_pairs, parse_labels
 from preprocessing import preprocess_yolo
-from utils import wh_to_minmax, minmax_to_wh
+from object_utils import wh_to_minmax, minmax_to_wh, split, merge
 from augmentations import augment
 
 class Augmenter:
