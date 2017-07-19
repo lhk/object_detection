@@ -1,4 +1,5 @@
 # object_detection
+This is a port of [YOLO](https://pjreddie.com/darknet/) 
 
 # sample results
 
