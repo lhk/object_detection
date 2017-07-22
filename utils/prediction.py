@@ -3,7 +3,7 @@ helper functions to work with predictions
 """
 
 import numpy as np
-from activations import *
+from utils.activations import *
 
 def get_probabilities(data,
                      out_x, out_y,
@@ -12,6 +12,8 @@ def get_probabilities(data,
     # in case you've provided a whole batch, we reshape to the proper dimension and drop the batch dimension
     # nevertheless you shouldn't pass in a whole batch, maybe that would mask other problems related to the dimensions
     data = data.reshape((-1, out_x, out_y, B, C+5))
+    assert data.shape[0] == 1, "this doesn't work on batches"
+    
     data = data[0]
 
     classes = data[:,:,:,5:]

@@ -34,9 +34,9 @@ The loss function contains completely symmetrical code to slice the data out of 
 import numpy as np
 import cv2
 
-from parser import parse_image_label_pairs, parse_labels
+from parser.parser import parse_image_label_pairs, parse_labels
 from preprocessing import preprocess_yolo
-from object_utils import wh_to_minmax, minmax_to_wh, split, merge
+from utils.object import wh_to_minmax, minmax_to_wh, split, merge
 from augmentations import augment
 
 class Augmenter:

@@ -21,7 +21,7 @@ import tensorflow as tf
 
 import inspect
 
-from activations import *
+from utils.activations import *
 
 def curry(func, *args, **kwargs):
     assert inspect.getargspec(func)[1] == None, 'Currying can\'t work with *args syntax'
@@ -161,13 +161,13 @@ def loss_func(anchors,
 
     # determine the best box
     # this provides a mask along the B dimension, which keeps only the responsible boxes
-    #best_IoU = tf.argmax(IoU, axis=-1)
-    #box_mask = tf.one_hot(best_IoU, depth=B, axis=-1)
-    #box_mask = tf.reshape(box_mask, (-1, out_x * out_y, B, 1))
-
-    box_mask = tf.equal(IoU, tf.reduce_max(IoU, -1, True))
-    box_mask = tf.to_float(box_mask)
+    best_IoU = tf.argmax(IoU, axis=-1)
+    box_mask = tf.one_hot(best_IoU, depth=B, axis=-1)
     box_mask = tf.reshape(box_mask, (-1, out_x * out_y, B, 1))
+
+    #box_mask = tf.equal(IoU, tf.reduce_max(IoU, -1, True))
+    #box_mask = tf.to_float(box_mask)
+    #box_mask = tf.reshape(box_mask, (-1, out_x * out_y, B, 1))
     
     # now we know which box is responsible for the prediction in each cell
     # we still need to take the objectness into consideration
