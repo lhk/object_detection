@@ -1,5 +1,7 @@
 """
-helper functions to work with predictions
+helper functions to work with predictions.
+The blob which is passed to the loss function can be inconvenient to work with. The extract_from_blob function converts this blob into a handy dictionary.
+The get_probabilites() function takes a single prediction, 1 along the batch dimension, and sliced the objectness, class probabilities and joint object probability out of it.
 """
 
 import numpy as np

@@ -1,4 +1,9 @@
-
+"""
+The output of YOLO contains probabilities but no discrete object detections.
+This file helps to look for all detections above a certain threshold.
+In a next step, non-max-suppression needs to be applied to these detections.
+The nms algorithm is here, too.
+"""
 import numpy as np
 import tensorflow as tf
 
