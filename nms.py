@@ -61,7 +61,7 @@ def get_detections(predictions, threshold, anchors, out_x, out_y, in_x, in_y, B,
         
     return detections
 
-def apply_nms(detections, iou_threshold, session):
+def apply_nms(detections, session, iou_threshold=0.2):
     # sort the detections
     #create a dictionary that maps labels to detections and their confidence scores
     label_dict={}
