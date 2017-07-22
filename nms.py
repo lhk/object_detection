@@ -61,7 +61,7 @@ def get_detections(predictions, threshold, anchors, out_x, out_y, in_x, in_y, B,
         
     return detections
 
-def apply_nms(detections, session):
+def apply_nms(detections, iou_threshold, session):
     # sort the detections
     #create a dictionary that maps labels to detections and their confidence scores
     label_dict={}
@@ -89,7 +89,7 @@ def apply_nms(detections, session):
         # unfortunately, the list is a tensor
         # we need a session to evaluate the tensor
         # at the very top of this notebook we have created this session
-        idx = tf.image.non_max_suppression(boxes, scores, 5, iou_threshold=0.2)
+        idx = tf.image.non_max_suppression(boxes, scores, 5, iou_threshold=iou_threshold)
         idx = session.run(idx)
 
         # boxes we keep
