@@ -23,6 +23,8 @@ import inspect
 
 from utils.activations import *
 
+
+# code taken from here: https://gist.github.com/Djexus/1193399/88a4ced30874876e561c8f1d480d83df38c20eca
 def curry(func, *args, **kwargs):
     assert inspect.getargspec(func)[1] == None, 'Currying can\'t work with *args syntax'
     assert inspect.getargspec(func)[2] == None, 'Currying can\'t work with *kwargs syntax'
