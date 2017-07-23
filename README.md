@@ -5,10 +5,10 @@ There are many existing ports, such as:
  - https://github.com/allanzelener/YAD2K
  - https://github.com/thtrieu/darkflow
 
-Most of the existing ports are much more feature complete.
+These ports are much more polished and feature complete.
 
-And much more complicated.
-This is intended as a tutorial to see how yolo works.
+I'm using YOLO for a student project and wanted to really understand how it works.
+This repository is intended as a tutorial and a reference.
 I've tried to keep the code minimal and well documented.
 
 This port doesn't contain:
