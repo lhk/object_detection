@@ -3,126 +3,13 @@
 
 
 import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as pl
+import matplotlib.pyplot as plt
 import cv2
 
 import sys
 
-sys.path.insert(0, "/home/lars/libraries/keras/")
-import keras
-
-assert keras.__version__[0] == "2", "we work on version 2 of keras"
-
-from keras.layers import Input
-from keras.layers import BatchNormalization, SpatialDropout2D
-from keras.layers.pooling import MaxPool2D
-from keras.layers.convolutional import Conv2D
-from keras.layers.advanced_activations import LeakyReLU
-from keras.models import Model, load_model
-
-import keras.backend as K
-
-from keras.callbacks import Callback
-
-# ### allow dynamic memory allocation
-
-
-
-
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-sess = tf.Session(config=config)
-K.set_session(sess)
-
-# ### Load the pretrained model
-
-
-
-
-extraction_model = load_model("models/tiny_yolo_voc.h5")
-
-# the pretrained weights shouldn't be updated any more
-# I'm only using them for feature extraction
-for layer in extraction_model.layers:
-    layer.trainable = False
-
-# ### Extracting features from the pretrained model
-# Now I'm taking features from the pretrained model and concatenating them to one big feature map.
-# This code is meant as a template to take features from any extraction model and merge them.
-# As you can see, I'm only using the features after the last pooling.
-# But you could take this code and combine it with vgg16 or something else, then you might want to take intermediate feature maps, too.
-# 
-# The big yolo network has skip connections and does use something like this.
-
-
-
-
-from keras.layers.merge import Concatenate
-
-block3 = extraction_model.get_layer(name="max_pooling2d_4").output
-block4 = extraction_model.get_layer(name="max_pooling2d_5").output
-block5 = extraction_model.get_layer(name="max_pooling2d_6").output
-
-block3_resized = MaxPool2D((2, 2), name="e_maxpool1")(block3)
-block4_resized = block4
-block5_resized = block5
-
-shape3 = [int(dim) for dim in block3_resized.shape[1:3]]
-shape4 = [int(dim) for dim in block4_resized.shape[1:3]]
-shape5 = [int(dim) for dim in block5_resized.shape[1:3]]
-
-assert shape3 == shape4, "resolution must be identical"
-assert shape4 == shape5, "resolution must be identical"
-
-# extracted_features = Concatenate(axis=-1)([
-#    block3_resized, 
-#    block4_resized, 
-#    block5_resized])
-extracted_features = block5_resized
-extracted_features.shape.as_list()
-
-# ### A new model
-# This recreates the layout of tiny yolo.
-# But the layers are not trained yet. This way I can check if the setup really works.
-
-
-
-
 B = 5  # number of anchor boxes
 C = 20  # number of classes
-
-# start with the extracted features
-conv = extracted_features
-
-# block 1
-conv = Conv2D(1024, 3,
-              padding="same",
-              use_bias=False,
-              kernel_regularizer=keras.regularizers.l2(0.0005),
-              name="head_conv1")(conv)
-conv = BatchNormalization(name="head_bnorm1")(conv)
-conv = LeakyReLU(0.1, name="head_lrelu1")(conv)
-conv = SpatialDropout2D(0.3)(conv)
-
-# block 2
-conv = Conv2D(1024, 3,
-              padding="same",
-              use_bias=False,
-              kernel_regularizer=keras.regularizers.l2(0.0005),
-              name="head_conv2")(conv)
-conv = BatchNormalization(name="head_bnorm2")(conv)
-conv = LeakyReLU(0.1, name="head_lrelu2")(conv)
-conv = SpatialDropout2D(0.15)(conv)
-
-# output
-conv = Conv2D(B * (C + 5), 1,
-              padding="same",
-              use_bias=True,
-              kernel_regularizer=keras.regularizers.l2(0.0005),
-              name="head_conv3")(conv)
-
-detection_model = Model(inputs=extraction_model.input, outputs=conv)
 
 # ### parameters of the model
 # 
@@ -133,15 +20,10 @@ detection_model = Model(inputs=extraction_model.input, outputs=conv)
 
 
 
-input_tensor = detection_model.input
-
-in_x = int(input_tensor.shape[1])
-in_y = int(input_tensor.shape[2])
-
-output_tensor = detection_model.output
-
-out_x = int(output_tensor.shape[1])
-out_y = int(output_tensor.shape[2])
+in_x = 256
+in_y = 256
+out_x = 32
+out_y = 32
 
 lambda_coords = 10
 lambda_class = 2
@@ -162,24 +44,32 @@ config["max_rotation"] = 10
 config["max_shift"] = 0.05
 config["zoom_range"] = (0.8, 1.2)
 
-train_path = "/home/lars/data/darknet/VOC/train.txt"
-test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
+train_path = r"C:\Users\lhk\OneDrive\data\VOC\train.txt"
+test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
 
 # iterator class to provide data to model.fit_generator
-from generator import Augmenter
-
+from ssd.generator import generate
 batch_size = 64
 
-# generators for training data and test data
-train_gen = Augmenter(train_path,
-                      in_x, in_y, out_x, out_y,
-                      B, C, batch_size=batch_size)
-val_gen = Augmenter(test_path,
-                    in_x, in_y, out_x, out_y,
-                    B, C, batch_size=batch_size)
+# anchor boxes are taken from the tiny yolo voc config
+anchors = np.zeros((B, 2))
+anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
+
+# the anchors are given as width, height
+# this doesn't work with numpy's layout
+# we have to switch the x and y dimensions
+temp = anchors[:, 0].copy()
+anchors[:, 0] = anchors[:, 1]
+anchors[:, 1] = temp
+
+scale = 0.6
+data_path = train_path
+
+
+train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path)
 
 # test the generator
-batch = next(val_gen)
+batch = next(train_gen)
 imgs = batch[0]
 objects = batch[1]
 
@@ -201,17 +91,6 @@ plt.imshow(imgs[0, :, :])
 
 
 
-
-# anchor boxes are taken from the tiny yolo voc config
-anchors = np.zeros((B, 2))
-anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
-
-# the anchors are given as width, height
-# this doesn't work with numpy's layout
-# we have to switch the x and y dimensions
-temp = anchors[:, 0].copy()
-anchors[:, 0] = anchors[:, 1]
-anchors[:, 1] = temp
 
 from loss_function import loss_func
 
