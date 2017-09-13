@@ -155,7 +155,7 @@ train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 from ssd.generator import generate
-batch_size = 64
+batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
 anchors = np.zeros((B, 2))
@@ -168,7 +168,7 @@ temp = anchors[:, 0].copy()
 anchors[:, 0] = anchors[:, 1]
 anchors[:, 1] = temp
 
-scale = 0.7
+scale = 1
 
 train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=train_path)
 val_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=test_path)
@@ -194,20 +194,6 @@ plt.imshow(imgs[0, :, :])
 # If the loss function is called, it prints the parameters it has been given.
 # Be sure to check this.
 # Look at model.compile.
-
-
-
-
-# anchor boxes are taken from the tiny yolo voc config
-anchors = np.zeros((B, 2))
-anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
-
-# the anchors are given as width, height
-# this doesn't work with numpy's layout
-# we have to switch the x and y dimensions
-temp = anchors[:, 0].copy()
-anchors[:, 0] = anchors[:, 1]
-anchors[:, 1] = temp
 
 from ssd.ssd_loss_function import loss_func
 
@@ -267,7 +253,7 @@ for i in range(20):
                                             validation_data=val_gen,
                                             validation_steps=1600 // batch_size,
                                             # use_multiprocessing=False)
-                                            workers=4,
+                                            workers=1,
                                             max_queue_size=24)
     histories.append(history)
     times.append(time.time())
