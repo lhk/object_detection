@@ -5,7 +5,7 @@ The get_probabilites() function takes a single prediction, 1 along the batch dim
 """
 
 import numpy as np
-from utils.activations import *
+from lib.utils.activations import *
 
 def get_probabilities(data,
                      out_x, out_y,

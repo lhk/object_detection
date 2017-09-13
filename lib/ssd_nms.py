@@ -37,13 +37,17 @@ def get_detections(predictions, threshold, anchors, out_x, out_y, in_x, in_y, B,
         box_idx = np.argmax(current_probs)
         box = predictions[row, col, box_idx]
 
+        default_box = anchors[box_idx]
+        df_w = default_box[0]
+        df_h = default_box[1]
+
         # get the predicted coordinates, convert them to percent
         # this is the same code as in the generator and the loss function
         # the network learns to predict coordinates encoded in this way
-        p_x = (row + np_sigmoid(box[0])) / out_x
-        p_y = (col + np_sigmoid(box[1])) / out_y
-        p_dx = (np.exp(box[2]) * anchors[box_idx, 0]) / out_x
-        p_dy = (np.exp(box[3]) * anchors[box_idx, 1]) / out_y
+        p_x = (row + box[0]*df_w) / out_x
+        p_y = (col + box[1]*df_h) / out_y
+        p_dx = (np.exp(box[2])) * df_w / out_x
+        p_dy = (np.exp(box[3])) * df_h / out_y
 
         # resize the predicted coordinates to the input resolution
         min_x = int ((p_x - p_dx/2.) * in_x)
