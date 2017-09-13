@@ -46,8 +46,8 @@ def get_detections(predictions, threshold, anchors, out_x, out_y, in_x, in_y, B,
         # the network learns to predict coordinates encoded in this way
         p_x = (row + box[0]*df_w) / out_x
         p_y = (col + box[1]*df_h) / out_y
-        p_dx = (np.exp(box[2])) * df_w / out_x
-        p_dy = (np.exp(box[3])) * df_h / out_y
+        p_dx = (np.exp(box[2])) * df_w
+        p_dy = (np.exp(box[3])) * df_h
 
         # resize the predicted coordinates to the input resolution
         min_x = int ((p_x - p_dx/2.) * in_x)

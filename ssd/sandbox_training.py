@@ -138,7 +138,7 @@ out_y = int(output_tensor.shape[2])
 lambda_coords = 10
 lambda_class = 2
 lambda_obj = 5
-lambda_noobj = 0.5
+lambda_noobj = 0.1
 
 # ### Set up the training data
 # Follow the guide on the darknet side to set up VOC:
@@ -287,7 +287,7 @@ if train:
     plt.title("loss")
     plt.show()
 
-    detection_model.save_weights("models/detection_model_trained.h5")
+    detection_model.save_weights("models/detection_model_trained2.h5")
 
 
 else:
@@ -295,7 +295,7 @@ else:
     #with open("models/detection_model.json") as json_file:
     #    json_string = json_file.read()
     #    detection_model = model_from_json(json_string)
-    detection_model.load_weights("models/detection_model_trained.h5")
+    detection_model.load_weights("models/detection_model_trained2.h5")
 
 # # Evaluation
 
@@ -310,7 +310,7 @@ else:
 
 # del extract_from_blob
 # del get_probabilities
-from lib.utils.prediction import extract_from_blob, get_probabilities
+from lib.utils.ssd_prediction import extract_from_blob, get_probabilities
 
 np.random.seed(0)
 test_gen = val_gen
@@ -340,7 +340,7 @@ classes, objectness, probs = get_probabilities(predictions[0], out_x, out_y, B, 
 # for every cell in the output activation map, get the best bounding box score
 max_probs = probs.max(axis=-1)
 
-threshold = 0.0008
+threshold = 0.3
 thresholded = max_probs > threshold
 
 f, axes = plt.subplots(1, 3, figsize=(10, 10))

@@ -269,7 +269,8 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 labels[b, cell_number, :, label] = 1
 
                 # store the objectness
-                objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
+                #objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
+                objectness[b, cell_number, IoU[B, cell_number].argmax(), :]=1
 
                 # the target for the bounding box regression
                 # x and y coordinates: an offset to the cell's center, scaled by default box width and height
@@ -278,7 +279,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
                 # width and height, scaled by default box, scaled by log
                 g_hat[b, cell_number, :, 2] = np.log(size_x / default_boxes[:, 0])
-                g_hat[b, cell_number, :, 3] = np.log(size_x / default_boxes[:, 1])
+                g_hat[b, cell_number, :, 3] = np.log(size_y / default_boxes[:, 1])
 
                 # visualization
                 visualize = False
