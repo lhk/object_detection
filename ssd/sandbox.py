@@ -62,7 +62,7 @@ temp = anchors[:, 0].copy()
 anchors[:, 0] = anchors[:, 1]
 anchors[:, 1] = temp
 
-scale = 0.6
+scale = 0.7
 data_path = train_path
 
 
