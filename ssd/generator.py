@@ -79,9 +79,6 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # this stores whether there is an object in the cell
         objectness = np.zeros([batch_size, out_x * out_y, B, 1])
 
-        #  for each bounding box, this stores [x, y, w, h]. x and y are relative to the center of the corresponding cell
-        boxes = np.zeros([batch_size, out_x * out_y, B, 4])
-
         # this stores the object coordinates
         # coordinates will go from 0 to out_x and 0 to out_y
         # attention: this is only used for computing the corners and areas
@@ -104,7 +101,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # the container to store all of this
         # this is passed to the loss function, the different parts are then sliced out of this blob of data
         # the C+10 is the sum of the sizes of the last dimension of everything passed ot the loss
-        blob = np.zeros((batch_size, out_x * out_y, B, C + 10))
+        blob = np.zeros((batch_size, out_x * out_y, B, C + 6))
 
         # calculating coordinates and areas for the default boxes
         default_boxes = np.zeros((B, 2))
@@ -316,16 +313,12 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
                         print("found one")
 
-                # TODO: remove this, it's no longer needed
-                # the loss is based on the L1 loss against g_hat
-                boxes[b, cell_number, :, :] = [rel_x, rel_y, size_x, size_y]
-
 
         # asserts to make sure the arrays are correct
         assert np.all(gt_areas>=0), "an object must not have negative area"
 
         # the huge blob of data
-        data = [labels, objectness, gt_areas, boxes, gt_upper_left_corner, gt_lower_right_corner]
+        data = [labels, objectness, gt_areas, g_hat]
         pointer = 0
         for item in data:
             length = item.shape[-1]
