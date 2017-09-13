@@ -77,101 +77,15 @@ def loss_func(anchors,
     f_boxes = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
     pointer += length
 
-    length = 2
-    f_upper_left_corner = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
-    pointer += length
-
-    length = 2
-    f_lower_right_corner = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
-    pointer += length
-
     # part 1: the coordinate predictions
     # slice the predicted coordinates out of the loss
-    p_coords = output_layer[:, :, :, :, :4]
-    p_coords = tf.reshape(p_coords, (-1, out_x * out_y, B, 4))
+    p_boxes = output_layer[:, :, :, :, :4]
+    l_boxes = tf.reshape(p_boxes, (-1, out_x * out_y, B, 4))
 
-    # scale them with the anchor boxes
-    # the anchor boxes need to be reshaped for proper broadcasting
-    r_anchors = anchors.reshape((1, 1, B, 2))
-    WH = np.reshape([out_x, out_y], [1, 1, 1, 2])
-
-    # split into xy, wh
-    # I'm prefacing the values described in the paper b_ (as in the paper)
-    # and then I'm applying the rescaling: sqrt for wh, none for xy. those values are prefaced with s_
-    p_coords_xy = p_coords[:, :, :, :2]
-    b_coords_xy = tf_sigmoid(p_coords_xy)
-    s_coords_xy = b_coords_xy
-
-    p_coords_wh = p_coords[:, :, :, 2:]
-
-    # width and height get a special treatment
-    # they have exp as an activation function, are scaled with the anchors
-    # and their output is not in relative coords but in [0, out_x] and [0, out_y]
-    # TODO: changing this seems to break the network
-    # if the division with WH is removed, the output is expected to be in [0,1]
-    # this means that the network has to predict very small values
-    # which seems to be problematic
-    # this needs more work, maybe a different activation function 
-    # training the network to predict values not in [0,1] has the disadvantage that it is not portable
-    # different output resolutions will break the setup
-    b_coords_wh = (tf.exp(p_coords_wh) * r_anchors) / WH
-    s_coords_wh = tf.sqrt(b_coords_wh)
-
-    l_coords = tf.concat([s_coords_xy, s_coords_wh], axis=-1)
-
-    # for the area, the width and height need to be multiplied with W and H
-    # they need to be in [0, out_x] and [0, out_y]
-    a_coords_wh = b_coords_wh * WH
-
-    # part 2: the masks
-    # the complicated part is finding out, which anchor is responsible for the prediction
-    # calculate the predicted areas, the output of the network is supposed to be in the [0,out_x], [0,out_y] range
-    # no rescaling is necessary here
-    p_areas = a_coords_wh[:, :, :, 0] * a_coords_wh[:, :, :, 1]
-    p_areas = tf.maximum(p_areas, 0.)
-
-    # get the upper left and lower right corners of the predicted rectangles
-    # they correspond directly to the similar calculations in the data preprocessing
-    p_upper_left_corner = p_coords_xy - 0.5 * a_coords_wh
-    p_lower_right_corner = p_coords_xy + 0.5 * a_coords_wh
-
-    # compare the predicted areas with the object's bbox
-    # intersection over union is used for this
-    # the anchor box with the highest intersection is responsible for predicting this object
-    # only this box is supposed to have a high objectness, only the coordinates of this bounding box have to be accurate
-
-    # the intersection is calculated just as the area is calculated in the generator
-    # we look at the two rectangles: the prediction and the given rectangle
-    # then we take the upper left and lower right corners
-    # one of those corners will be more outward than the other, so we take a minimum
-    # calculate intersection and IoU
-    inner_upper_left = tf.maximum(p_upper_left_corner, f_upper_left_corner)
-    inner_lower_right = tf.minimum(p_lower_right_corner, f_lower_right_corner)
-    diag = inner_lower_right - inner_upper_left
-    diag = tf.maximum(diag, 0.)
-    intersection = diag[:, :, :, 0] * diag[:, :, :, 1]
-
-    # these areas have been calculated in the generator
-    f_areas = tf.reshape(f_areas, (-1, out_x * out_y, B))
-
-    # IoU with smoothing to prevent division by zero
-    union = f_areas + p_areas - intersection
-    union = tf.maximum(union, 0.)
-    eps = 0.01
-    IoU = intersection / (eps + union)
-
-    # determine the best box
-    # this provides a mask along the B dimension, which keeps only the responsible boxes
-    best_IoU = tf.argmax(IoU, axis=-1)
-    box_mask = tf.one_hot(best_IoU, depth=B, axis=-1)
-    box_mask = tf.reshape(box_mask, (-1, out_x * out_y, B, 1))
-
-    # now we know which box is responsible for the prediction in each cell
-    # we still need to take the objectness into consideration
-    # only if there actually is an object in the cell, the predictions are used for the loss
-    # the objectness for each cell and for each box is fed in f_objectness
-    # the mask will be 1 iff there is an object in the cell and this box is responsible for finding the object
-    mask = tf.multiply(box_mask, f_objectness, name="mask")
+    # as opposed to YOLO, the mask only relies on objectness
+    # we have filtered the boxes by overlap in the generator
+    # no calculation of IoU is necessary here
+    mask = f_objectness
 
     # calculate the loss terms and mask them
     # all the losses in yolo are simply squared error
@@ -181,7 +95,8 @@ def loss_func(anchors,
     #           f_ is the corresponding value, fed into the network
 
     # coordinates
-    loss_coords = l_coords - f_boxes
+    # TODO: replace mse with smooth L1
+    loss_coords = l_boxes - f_boxes
     loss_coords = tf.pow(loss_coords, 2)
     loss_coords = tf.multiply(loss_coords, mask, name="masked_loss_coords")
     loss_coords = tf.reduce_sum(loss_coords)
@@ -219,6 +134,5 @@ def loss_func(anchors,
 
     # adding everything together
     total_loss = loss_coords + loss_obj + loss_noobj + loss_labels
-    # total_loss = loss_obj + loss_noobj
 
     return total_loss
