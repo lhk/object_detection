@@ -245,8 +245,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 axes[0, 0].imshow(img)
                 axes[0, 1].imshow(IoU_img[0,:,:,0,0])
                 plt.show()
-
-            print("stop mark")
+                
             # attention: every cell in the output can predict at most 1 object
             # if there is more than one object in the cell, later objects will override earlier objects
             # we do the following
