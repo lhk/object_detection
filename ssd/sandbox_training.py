@@ -208,92 +208,94 @@ loss = loss_func(*meta_data)
 
 from keras.optimizers import Adam, SGD
 
-# check this: are the parameters correct ?
-detection_model.compile(Adam(lr=0.00005), loss)
+
+train = False
+if train:
+
+    # check this: are the parameters correct ?
+    detection_model.compile(Adam(lr=0.00005), loss)
 
 
-# detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
+    # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
+
+    # taken from the keras source
+    # if the learning rate is too fast, NaNs can occur, stop the training in this case
+    class TerminateOnNaN(Callback):
+        def __init__(self):
+            self.seen = 0
+
+        def on_batch_end(self, batch, logs=None):
+            self.seen += 1
+
+            logs = logs or {}
+            loss = logs.get('loss')
+
+            if loss is not None:
+                if np.isnan(loss) or np.isinf(loss):
+                    print('Batch %d: Invalid loss, terminating training' % (batch))
+                    print("logs: ", logs)
+
+                    self.model.stop_training = True
+
+
+    nan_terminator = TerminateOnNaN()
+
+    # train in small steps and append histories
+    # if training is interrupted, the history array still contains usable data
+    import time
+
+    histories = []
+    times = []
+    for i in range(20):
+        history = detection_model.fit_generator(train_gen, 6400 // batch_size,
+                                                epochs=5,
+                                                callbacks=[nan_terminator],
+                                                validation_data=val_gen,
+                                                validation_steps=1600 // batch_size,
+                                                # use_multiprocessing=False)
+                                                workers=1,
+                                                max_queue_size=24)
+        histories.append(history)
+        times.append(time.time())
+
+    # ### Plot the test / val loss
+    # As you can see, the model reaches about 1000 for validation loss.
+    # Then it overfits.
+    #
+    # This number can't be interpreted correctly. It depends on the size of the network and the batch.
+    # A solution would be to take the mean in the loss instead of summing all components.
+    # But that would mess with the learning rate.
+    #
+    # I'm evaluating the pretrained model against the validation generator.
+    # Surprisingly, the new model reaches better scores.
+    # A possible explanation: The original yolo doesn't use rotations as augmentations. The validation generator uses rotations.
+    # Or the number of samples from the validation set was simply too small
 
 
 
 
+    losses = []
+    val_losses = []
 
-# taken from the keras source
-# if the learning rate is too fast, NaNs can occur, stop the training in this case
-class TerminateOnNaN(Callback):
-    def __init__(self):
-        self.seen = 0
+    for item in histories:
+        losses.extend(item.history["loss"])
+        val_losses.extend(item.history["val_loss"])
 
-    def on_batch_end(self, batch, logs=None):
-        self.seen += 1
+    plt.plot(losses)
+    plt.plot(val_losses)
+    plt.legend(["train", "val"])
+    plt.title("loss")
+    plt.show()
 
-        logs = logs or {}
-        loss = logs.get('loss')
-
-        if loss is not None:
-            if np.isnan(loss) or np.isinf(loss):
-                print('Batch %d: Invalid loss, terminating training' % (batch))
-                print("logs: ", logs)
-
-                self.model.stop_training = True
+    detection_model.save_weights("models/detection_model_trained.h5")
 
 
-nan_terminator = TerminateOnNaN()
-
-# train in small steps and append histories
-# if training is interrupted, the history array still contains usable data
-import time
-
-histories = []
-times = []
-for i in range(20):
-    history = detection_model.fit_generator(train_gen, 6400 // batch_size,
-                                            epochs=5,
-                                            callbacks=[nan_terminator],
-                                            validation_data=val_gen,
-                                            validation_steps=1600 // batch_size,
-                                            # use_multiprocessing=False)
-                                            workers=1,
-                                            max_queue_size=24)
-    histories.append(history)
-    times.append(time.time())
-
-# ### Plot the test / val loss
-# As you can see, the model reaches about 1000 for validation loss.
-# Then it overfits.
-#
-# This number can't be interpreted correctly. It depends on the size of the network and the batch.
-# A solution would be to take the mean in the loss instead of summing all components.
-# But that would mess with the learning rate.
-#
-# I'm evaluating the pretrained model against the validation generator.
-# Surprisingly, the new model reaches better scores.
-# A possible explanation: The original yolo doesn't use rotations as augmentations. The validation generator uses rotations.
-# Or the number of samples from the validation set was simply too small
-
-
-
-
-losses = []
-val_losses = []
-
-for item in histories:
-    losses.extend(item.history["loss"])
-    val_losses.extend(item.history["val_loss"])
-
-plt.plot(losses)
-plt.plot(val_losses)
-plt.legend(["train", "val"])
-plt.title("loss")
-plt.show()
-
-extraction_model.compile(Adam(lr=0.0001), loss)
-
-len(histories)
-
-# how does the reference model deal with this loss function ?
-extraction_model.evaluate_generator(val_gen, 12800 // batch_size, max_queue_size=20, workers=4,
-                                    use_multiprocessing=False)
+else:
+    from keras.models import  model_from_json
+    #with open("models/detection_model.json") as json_file:
+    #    json_string = json_file.read()
+    #    detection_model = model_from_json(json_string)
+    detection_model.load_weights("models/detection_model_trained.h5")
 
 # # Evaluation
 
@@ -310,9 +312,10 @@ extraction_model.evaluate_generator(val_gen, 12800 // batch_size, max_queue_size
 # del get_probabilities
 from lib.utils.prediction import extract_from_blob, get_probabilities
 
+np.random.seed(0)
 test_gen = val_gen
 # get some sample data
-batch = next(test_gen)
+batch = next(train_gen)
 img = batch[0].copy()
 
 plt.imshow(img[0])
@@ -323,9 +326,6 @@ predictions = detection_model.predict(batch[0])
 predictions.shape
 
 # ### Comparing given objectness with confidence of the network
-
-
-
 
 # extract the given objectness for this image
 loss_dict = extract_from_blob(batch[1], out_x, out_y, B, C)
@@ -340,7 +340,7 @@ classes, objectness, probs = get_probabilities(predictions[0], out_x, out_y, B, 
 # for every cell in the output activation map, get the best bounding box score
 max_probs = probs.max(axis=-1)
 
-threshold = 0.3
+threshold = 0.0008
 thresholded = max_probs > threshold
 
 f, axes = plt.subplots(1, 3, figsize=(10, 10))
@@ -442,3 +442,5 @@ for label in nms:
 plt.figure(figsize=(10, 10))
 plt.imshow(output_img)
 plt.show()
+
+print("here")
