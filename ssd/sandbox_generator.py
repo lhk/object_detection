@@ -47,11 +47,12 @@ config["zoom_range"] = (0.8, 1.2)
 train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 
-#train_path = r"C:\Users\lhk\OneDrive\data\VOC\train.txt"
-#test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
+# train_path = r"C:\Users\lhk\OneDrive\data\VOC\train.txt"
+# test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
 
 # iterator class to provide data to model.fit_generator
 from ssd.generator import generate
+
 batch_size = 64
 
 # anchor boxes are taken from the tiny yolo voc config
@@ -68,8 +69,7 @@ anchors[:, 1] = temp
 scale = 0.7
 data_path = train_path
 
-
-train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path)
+train_gen = generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path)
 
 # test the generator
 batch = next(train_gen)
