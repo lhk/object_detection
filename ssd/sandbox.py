@@ -94,8 +94,7 @@ plt.imshow(imgs[0, :, :])
 
 
 
-
-from loss_function import loss_func
+from ssd.ssd_loss_function import loss_func
 
 meta_data = [anchors, out_x, out_y, B, C, lambda_class, lambda_coords, lambda_obj, lambda_noobj]
 loss = loss_func(*meta_data)
