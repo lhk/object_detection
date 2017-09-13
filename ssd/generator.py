@@ -101,7 +101,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # the container to store all of this
         # this is passed to the loss function, the different parts are then sliced out of this blob of data
         # the C+10 is the sum of the sizes of the last dimension of everything passed ot the loss
-        blob = np.zeros((batch_size, out_x * out_y, B, C + 6))
+        blob = np.zeros((batch_size, out_x * out_y, B, C + 5))
 
         # calculating coordinates and areas for the default boxes
         default_boxes = np.zeros((B, 2))
@@ -318,7 +318,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         assert np.all(gt_areas>=0), "an object must not have negative area"
 
         # the huge blob of data
-        data = [labels, objectness, gt_areas, g_hat]
+        data = [labels, objectness, g_hat]
         pointer = 0
         for item in data:
             length = item.shape[-1]

@@ -69,10 +69,6 @@ def loss_func(anchors,
     f_objectness = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
     pointer += length
 
-    length = 1
-    f_areas = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
-    pointer += length
-
     length = 4
     f_boxes = tf.reshape(blob[:, :, :, pointer: pointer + length], (-1, out_x * out_y, B, length))
     pointer += length
