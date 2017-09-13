@@ -44,8 +44,11 @@ config["max_rotation"] = 10
 config["max_shift"] = 0.05
 config["zoom_range"] = (0.8, 1.2)
 
-train_path = r"C:\Users\lhk\OneDrive\data\VOC\train.txt"
-test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
+train_path = "/home/lars/data/darknet/VOC/train.txt"
+test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
+
+#train_path = r"C:\Users\lhk\OneDrive\data\VOC\train.txt"
+#test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
 
 # iterator class to provide data to model.fit_generator
 from ssd.generator import generate

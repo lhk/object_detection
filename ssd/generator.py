@@ -41,7 +41,7 @@ from lib.utils.object import wh_to_minmax, minmax_to_wh, split, merge
 #from lib.augmentations import augment
 
 
-def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path, config=None):
+def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path, IoU_threshold=0.5, config=None):
     # todo: in_x, out_x and scale are maybe redundant. can I calculate one value from the other two ?
 
     # config for the augmentation
@@ -232,12 +232,14 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
             IoU_img = IoU.reshape((-1, out_x, out_y, B, 1))
 
-            import matplotlib.pyplot as plt
+            visualize = False
+            if visualize:
+                import matplotlib.pyplot as plt
 
-            f, axes = plt.subplots(2, 2)
-            axes[0, 0].imshow(img)
-            axes[0, 1].imshow(IoU_img[0,:,:,0,0])
-            plt.show()
+                f, axes = plt.subplots(2, 2)
+                axes[0, 0].imshow(img)
+                axes[0, 1].imshow(IoU_img[0,:,:,0,0])
+                plt.show()
 
             print("stop mark")
             # attention: every cell in the output can predict at most 1 object
@@ -265,24 +267,24 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 labels[b, cell_number, :, label] = 1
 
                 # store the objectness
-                objectness[b, cell_number, :, :] = 1
+                objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
 
                 # store the object sizes
                 boxes[b, cell_number, :, :] = [rel_x, rel_y, size_x, size_y]
 
 
         # asserts to make sure the arrays are correct
-        assert np.all(areas>=0), "an object must not have negative area"
+        assert np.all(gt_areas>=0), "an object must not have negative area"
 
         # the huge blob of data
-        data = [labels, objectness, areas, boxes, upper_left_corner, lower_right_corner]
+        data = [labels, objectness, gt_areas, boxes, gt_upper_left_corner, gt_lower_right_corner]
         pointer = 0
         for item in data:
             length = item.shape[-1]
             blob[:, :, :, pointer:pointer + length] = item
             pointer += length
 
-            assert pointer==blob.shape[-1], "data needs to fit exactly into the blob"
-            assert not np.any(np.isnan(blob)), "no value should be nan"
+        assert pointer==blob.shape[-1], "data needs to fit exactly into the blob"
+        assert not np.any(np.isnan(blob)), "no value should be nan"
 
-            yield batch, blob
+        yield batch, blob
