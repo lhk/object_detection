@@ -58,8 +58,6 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
     while True:
 
-        np.random.seed(0)
-
         # batch to store the images
         batch = np.zeros((batch_size, in_x, in_y, 3))
 
