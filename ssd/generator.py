@@ -277,25 +277,35 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 # store the objectness
                 objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
 
-                if np.any(objectness[b, cell_number, :, :] == 1):
-                    idxes = np.where(objectness[b, cell_number, :, :] == 1)
-                    box = idxes[0][0]
+                # the target for the bounding box regression
+                # x and y coordinates: an offset to the cell's center, scaled by default box width and height
+                g_hat[b, cell_number, :, 0] = rel_x / default_boxes[:, 0]
+                g_hat[b, cell_number, :, 1] = rel_y / default_boxes[:, 1]
 
-                    temp = np.zeros((out_x ,out_x))
-                    x_min = coords[b, cell_number, box, 0] + x_idx
-                    y_min = coords[b, cell_number, box, 1] + y_idx
-                    x_max = coords[b, cell_number, box, 2] + x_idx
-                    y_max = coords[b, cell_number, box, 3] + y_idx
+                # width and height, scaled by default box, scaled by log
+                g_hat[b, cell_number, :, 2] = np.log(size_x / default_boxes[:, 0])
+                g_hat[b, cell_number, :, 3] = np.log(size_x / default_boxes[:, 1])
 
-                    x_min = int(x_min)
-                    y_min = int(y_min)
-                    x_max = int(x_max)
-                    y_max = int(y_max)
+                # visualization
+                visualize = False
+                if visualize:
+                    if np.any(objectness[b, cell_number, :, :] == 1):
+                        idxes = np.where(objectness[b, cell_number, :, :] == 1)
+                        box = idxes[0][0]
 
-                    temp[x_min:x_max, y_min:y_max]=1
+                        temp = np.zeros((out_x ,out_x))
+                        x_min = coords[b, cell_number, box, 0] + x_idx
+                        y_min = coords[b, cell_number, box, 1] + y_idx
+                        x_max = coords[b, cell_number, box, 2] + x_idx
+                        y_max = coords[b, cell_number, box, 3] + y_idx
 
-                    visualize = False
-                    if visualize:
+                        x_min = int(x_min)
+                        y_min = int(y_min)
+                        x_max = int(x_max)
+                        y_max = int(y_max)
+
+                        temp[x_min:x_max, y_min:y_max]=1
+
                         import matplotlib.pyplot as plt
 
                         f, axes = plt.subplots(2, 2)
@@ -304,9 +314,10 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                         axes[1, 0].imshow(temp)
                         plt.show()
 
-                    print("found one")
+                        print("found one")
 
-                # store the object sizes
+                # TODO: remove this, it's no longer needed
+                # the loss is based on the L1 loss against g_hat
                 boxes[b, cell_number, :, :] = [rel_x, rel_y, size_x, size_y]
 
 
