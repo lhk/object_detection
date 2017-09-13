@@ -107,7 +107,8 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         blob = np.zeros((batch_size, out_x * out_y, B, C + 10))
 
         # calculating coordinates and areas for the default boxes
-        default_boxes = anchors * scale
+        default_boxes = np.zeros((B, 2))
+        default_boxes[:] = anchors * scale
         default_size_x = default_boxes[:, 0]
         default_size_y = default_boxes[:, 1]
 
