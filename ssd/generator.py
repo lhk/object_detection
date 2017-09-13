@@ -96,6 +96,11 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # areas of the gt boxes
         gt_areas = np.zeros([batch_size, out_x * out_y, B, 1])
 
+        # desired coordinate predictions
+        # TODO: this is important, if you change this, you need to adapt the evaluation
+        # I'm using the name from the SSD paper: g_hat is used for an L1 loss with the output of the layer
+        g_hat = np.zeros([batch_size, out_x * out_y, B, 4])
+
         # the container to store all of this
         # this is passed to the loss function, the different parts are then sliced out of this blob of data
         # the C+10 is the sum of the sizes of the last dimension of everything passed ot the loss
@@ -173,7 +178,9 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 rel_y = obj_y - np.floor(obj_y)
 
                 # the number of the corresponding cell
-                cell_number = np.floor(obj_x) * out_y + np.floor(obj_y)
+                x_idx = np.floor(obj_x)
+                y_idx = np.floor(obj_y)
+                cell_number = x_idx * out_y + y_idx
                 cell_number = int(cell_number)
 
                 # extract width and height
@@ -190,7 +197,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 coords[b, cell_number, :, 3] = rel_y + 0.5 * size_y * out_y
 
                 # plug all of this together
-                processed_object = [cell_number, label, rel_x, rel_y, size_x, size_y]
+                processed_object = [cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx]
                 processed_objects.append(processed_object)
 
 
@@ -258,7 +265,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             # that means that we no longer pass objectness = 1 for every box
             # but rather determine which boxes have sufficient overlap first
             for obj in processed_objects:
-                cell_number, label, rel_x, rel_y, size_x, size_y = obj
+                cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx = obj
 
                 # maybe we have already processed an object for this cell
                 # we will only consider one such object
@@ -268,6 +275,35 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
                 # store the objectness
                 objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
+
+                if np.any(objectness[b, cell_number, :, :] == 1):
+                    idxes = np.where(objectness[b, cell_number, :, :] == 1)
+                    box = idxes[0][0]
+
+                    temp = np.zeros((out_x ,out_x))
+                    x_min = coords[b, cell_number, box, 0] + x_idx
+                    y_min = coords[b, cell_number, box, 1] + y_idx
+                    x_max = coords[b, cell_number, box, 2] + x_idx
+                    y_max = coords[b, cell_number, box, 3] + y_idx
+
+                    x_min = int(x_min)
+                    y_min = int(y_min)
+                    x_max = int(x_max)
+                    y_max = int(y_max)
+
+                    temp[x_min:x_max, y_min:y_max]=1
+
+                    visualize = False
+                    if visualize:
+                        import matplotlib.pyplot as plt
+
+                        f, axes = plt.subplots(2, 2)
+                        axes[0, 0].imshow(img)
+                        axes[0, 1].imshow(IoU_img[0, :, :, 0, 0])
+                        axes[1, 0].imshow(temp)
+                        plt.show()
+
+                    print("found one")
 
                 # store the object sizes
                 boxes[b, cell_number, :, :] = [rel_x, rel_y, size_x, size_y]
