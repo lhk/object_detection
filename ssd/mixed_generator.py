@@ -67,9 +67,11 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # we use the jacard overlap
         # for that we need to have the default sizes of the predicted boxes
 
+        scaled_anchors = anchors*scale
+
         # calculating coordinates and areas for the default boxes
         default_boxes = np.zeros((B, 2))
-        default_boxes[:] = anchors * scale
+        default_boxes[:] = scaled_anchors * 0.5 #TODO: fix this
         default_size_x = default_boxes[:, 0]
         default_size_y = default_boxes[:, 1]
 
@@ -207,17 +209,6 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             eps=0.01
             IoU = intersection / (eps + union)
 
-            IoU_img = IoU.reshape((-1, out_x, out_y, B, 1))
-
-            visualize = False
-            if visualize:
-                import matplotlib.pyplot as plt
-
-                f, axes = plt.subplots(1, 2)
-                axes[0].imshow(img)
-                axes[1].imshow(IoU_img[b,:,:,0,0])
-                plt.show()
-
             # attention: every cell in the output can predict at most 1 object
             # if there is more than one object in the cell, later objects will override earlier objects
             # we do the following
@@ -243,7 +234,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 labels[b, cell_number, :, label] = 1
 
                 # store the objectness
-                objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
+                # objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
                 objectness[b, cell_number, IoU[B, cell_number].argmax(), :]=1
 
                 # the target for the bounding box regression
@@ -257,39 +248,8 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 # width and height, scaled by default box, scaled by log
                 target_coords[wh_idx] = size_x, size_y
 
-                target_coords[wh_idx] =target_coords[wh_idx] / anchors
+                target_coords[wh_idx] = target_coords[wh_idx] / scaled_anchors
                 target_coords[wh_idx] = np.log(target_coords[wh_idx])
-
-                # visualization
-                visualize = False
-                if visualize:
-                    if np.any(objectness[b, cell_number, :, :] == 1):
-                        idxes = np.where(objectness[b, cell_number, :, :] == 1)
-                        for (i,j) in zip(idxes[0], idxes[1]):
-                            box = idxes[i][j]
-
-                            temp = np.zeros((out_x ,out_x))
-                            x_min = coords[b, cell_number, box, 0] + x_idx
-                            y_min = coords[b, cell_number, box, 1] + y_idx
-                            x_max = coords[b, cell_number, box, 2] + x_idx
-                            y_max = coords[b, cell_number, box, 3] + y_idx
-
-                            x_min = int(x_min)
-                            y_min = int(y_min)
-                            x_max = int(x_max)
-                            y_max = int(y_max)
-
-                            temp[x_min:x_max, y_min:y_max]=1
-
-                            import matplotlib.pyplot as plt
-
-                            f, axes = plt.subplots(2, 2)
-                            axes[0, 0].imshow(img)
-                            axes[0, 1].imshow(IoU_img[b, :, :, 0, 0])
-                            axes[1, 0].imshow(temp)
-                            plt.show()
-
-                            print("found one")
 
 
         # asserts to make sure the arrays are correct
