@@ -138,7 +138,7 @@ out_y = int(output_tensor.shape[2])
 lambda_coords = 10
 lambda_class = 2
 lambda_obj = 5
-lambda_noobj = 0.1
+lambda_noobj = 0.5
 
 # ### Set up the training data
 # Follow the guide on the darknet side to set up VOC:
@@ -159,10 +159,10 @@ from ssd.mixed_generator import generate
 batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
-#anchors = np.zeros((B, 2))
-#anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
 anchors = np.zeros((B, 2))
-anchors[:] = [[1, 0.3], [0.8, 0.4], [0.6, 0.6], [0.4, 0.8], [0.3, 1]]
+anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
+#anchors = np.zeros((B, 2))
+#anchors[:] = [[1, 0.3], [0.8, 0.4], [0.6, 0.6], [0.4, 0.8], [0.3, 1]]
 
 # the anchors are given as width, height
 # this doesn't work with numpy's layout
@@ -171,7 +171,7 @@ temp = anchors[:, 0].copy()
 anchors[:, 0] = anchors[:, 1]
 anchors[:, 1] = temp
 
-scale = 0.7
+scale = 0.5
 
 train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=train_path)
 val_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=test_path)
@@ -213,11 +213,11 @@ loss = loss_func(*meta_data)
 from keras.optimizers import Adam, SGD
 
 
-train = False
+train = True
 if train:
 
     # check this: are the parameters correct ?
-    detection_model.compile(Adam(lr=0.00005), loss)
+    detection_model.compile(Adam(lr=0.00003), loss)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -319,15 +319,12 @@ else:
 from lib.utils.ssd_prediction import extract_from_blob, get_probabilities
 
 np.random.seed(0)
-test_gen = train_gen
+test_gen = val_gen
 
 while True:
     # get some sample data
     batch = next(test_gen)
     img = batch[0].copy()
-
-    plt.imshow(img[0])
-    plt.show()
 
     # feed the data to the model
     predictions = detection_model.predict(batch[0])
@@ -351,7 +348,7 @@ while True:
     threshold = 0.3
     thresholded = max_probs > threshold
 
-    f, axes = plt.subplots(1, 3, figsize=(10, 10))
+    f, axes = plt.subplots(1, 4, figsize=(10, 10))
 
     axes[0].imshow(f_objectness[0, :, :, 0])
     axes[0].set_title("given objectness")
@@ -361,7 +358,11 @@ while True:
 
     axes[2].imshow(thresholded)
     axes[2].set_title("thresholded")
+
+    axes[3].imshow(img[0])
+    axes[3].set_title("original image")
     plt.show()
+    plt.close()
 
     # ### Getting the predicted bounding boxes
 
@@ -370,7 +371,7 @@ while True:
 
     from lib.utils.activations import np_sigmoid, softmax
 
-    from lib.ssd_nms import get_detections, apply_nms, idx_to_name
+    from lib.mixed_nms import get_detections, apply_nms, idx_to_name
 
     detections = get_detections(predictions[0], threshold, anchors, out_x, out_y, in_x, in_y, B, C)
 
@@ -450,5 +451,4 @@ while True:
     plt.figure(figsize=(10, 10))
     plt.imshow(output_img)
     plt.show()
-
-    print("here")
+    plt.close()
