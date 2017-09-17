@@ -51,7 +51,7 @@ test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
 
 # iterator class to provide data to model.fit_generator
-from ssd.generator import generate
+from ssd.ssd_generator import generate
 
 batch_size = 64
 

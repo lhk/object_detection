@@ -154,12 +154,15 @@ config["zoom_range"] = (0.8, 1.2)
 train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
-from ssd.generator import generate
+#from ssd.ssd_generator import generate
+from ssd.mixed_generator import generate
 batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
+#anchors = np.zeros((B, 2))
+#anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
 anchors = np.zeros((B, 2))
-anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
+anchors[:] = [[1, 0.3], [0.8, 0.4], [0.6, 0.6], [0.4, 0.8], [0.3, 1]]
 
 # the anchors are given as width, height
 # this doesn't work with numpy's layout
@@ -195,7 +198,8 @@ plt.imshow(imgs[0, :, :])
 # Be sure to check this.
 # Look at model.compile.
 
-from ssd.ssd_loss_function import loss_func
+#from ssd.ssd_loss_function import loss_func
+from ssd.mixed_loss_function import loss_func
 
 meta_data = [anchors, out_x, out_y, B, C, lambda_class, lambda_coords, lambda_obj, lambda_noobj]
 loss = loss_func(*meta_data)
@@ -246,7 +250,7 @@ if train:
 
     histories = []
     times = []
-    for i in range(20):
+    for i in range(5):
         history = detection_model.fit_generator(train_gen, 6400 // batch_size,
                                                 epochs=5,
                                                 callbacks=[nan_terminator],
@@ -314,133 +318,135 @@ from lib.utils.ssd_prediction import extract_from_blob, get_probabilities
 
 np.random.seed(0)
 test_gen = val_gen
-# get some sample data
-batch = next(train_gen)
-img = batch[0].copy()
 
-plt.imshow(img[0])
-plt.show()
+while True:
+    # get some sample data
+    batch = next(test_gen)
+    img = batch[0].copy()
 
-# feed the data to the model
-predictions = detection_model.predict(batch[0])
-predictions.shape
+    plt.imshow(img[0])
+    plt.show()
 
-# ### Comparing given objectness with confidence of the network
+    # feed the data to the model
+    predictions = detection_model.predict(batch[0])
+    predictions.shape
 
-# extract the given objectness for this image
-loss_dict = extract_from_blob(batch[1], out_x, out_y, B, C)
+    # ### Comparing given objectness with confidence of the network
 
-# read the given objectness out of the loss dictionary
-f_objectness = loss_dict["f_objectness"].reshape((-1, out_x, out_y, B))
+    # extract the given objectness for this image
+    loss_dict = extract_from_blob(batch[1], out_x, out_y, B, C)
 
-# get the data out of the predictions
-classes, objectness, probs = get_probabilities(predictions[0], out_x, out_y, B, C)
+    # read the given objectness out of the loss dictionary
+    f_objectness = loss_dict["f_objectness"].reshape((-1, out_x, out_y, B))
 
-# probs is along the B dimension
-# for every cell in the output activation map, get the best bounding box score
-max_probs = probs.max(axis=-1)
+    # get the data out of the predictions
+    classes, objectness, probs = get_probabilities(predictions[0], out_x, out_y, B, C)
 
-threshold = 0.3
-thresholded = max_probs > threshold
+    # probs is along the B dimension
+    # for every cell in the output activation map, get the best bounding box score
+    max_probs = probs.max(axis=-1)
 
-f, axes = plt.subplots(1, 3, figsize=(10, 10))
+    threshold = 0.3
+    thresholded = max_probs > threshold
 
-axes[0].imshow(f_objectness[0, :, :, 0])
-axes[0].set_title("given objectness")
+    f, axes = plt.subplots(1, 3, figsize=(10, 10))
 
-axes[1].imshow(max_probs)
-axes[1].set_title("confidence")
+    axes[0].imshow(f_objectness[0, :, :, 0])
+    axes[0].set_title("given objectness")
 
-axes[2].imshow(thresholded)
-axes[2].set_title("thresholded")
-plt.show()
+    axes[1].imshow(max_probs)
+    axes[1].set_title("confidence")
 
-# ### Getting the predicted bounding boxes
+    axes[2].imshow(thresholded)
+    axes[2].set_title("thresholded")
+    plt.show()
 
-
-
-
-from lib.utils.activations import np_sigmoid, softmax
-
-from lib.nms import get_detections, apply_nms, idx_to_name
-
-detections = get_detections(predictions[0], threshold, anchors, out_x, out_y, in_x, in_y, B, C)
-
-print("number of detections: ", len(detections))
-
-# ## Non-Max Suppression
-# Sometimes yolo will predict the same object in more than one cell.
-# This happens mostly for very big objects where the center of the object is not clear.
-#
-# We need non-max suppression to remove overlapping bounding boxes.
-#
-# We apply the non-max suppression to each label separately.
+    # ### Getting the predicted bounding boxes
 
 
 
 
-# taken from the yolo repository
-names = ["aeroplane",
-         "bicycle",
-         "bird",
-         "boat",
-         "bottle",
-         "bus",
-         "car",
-         "cat",
-         "chair",
-         "cow",
-         "diningtable",
-         "dog",
-         "horse",
-         "motorbike",
-         "person",
-         "pottedplant",
-         "sheep",
-         "sofa",
-         "train",
-         "tvmonitor"]
+    from lib.utils.activations import np_sigmoid, softmax
 
-nms = apply_nms(detections, sess)
+    from lib.nms import get_detections, apply_nms, idx_to_name
 
-nms = idx_to_name(nms, names)
+    detections = get_detections(predictions[0], threshold, anchors, out_x, out_y, in_x, in_y, B, C)
 
-print("we found the following boxes after non-max suppression")
-print(nms)
+    print("number of detections: ", len(detections))
 
-# ### Plotting the output
-# I'm using opencv to draw rectangles around all detections
-# and to write the name in text onto the image.
-#
-# The image has a very low resolution.
-# For the output it is upscaled.
-# The main reason for this is to allow high-res text.
+    # ## Non-Max Suppression
+    # Sometimes yolo will predict the same object in more than one cell.
+    # This happens mostly for very big objects where the center of the object is not clear.
+    #
+    # We need non-max suppression to remove overlapping bounding boxes.
+    #
+    # We apply the non-max suppression to each label separately.
 
 
 
 
-img = batch[0][0]
-output_img = img.copy()
-dim_x, dim_y = output_img.shape[:2]
-factor = 5
-output_img = cv2.resize(output_img, (dim_y * factor, dim_x * factor))
+    # taken from the yolo repository
+    names = ["aeroplane",
+             "bicycle",
+             "bird",
+             "boat",
+             "bottle",
+             "bus",
+             "car",
+             "cat",
+             "chair",
+             "cow",
+             "diningtable",
+             "dog",
+             "horse",
+             "motorbike",
+             "person",
+             "pottedplant",
+             "sheep",
+             "sofa",
+             "train",
+             "tvmonitor"]
 
-for label in nms:
-    boxes = nms[label]
-    for box in boxes:
-        min_x, min_y, max_x, max_y = box
-        min_x *= factor
-        min_y *= factor
-        max_x *= factor
-        max_y *= factor
+    nms = apply_nms(detections, sess)
 
-        cv2.rectangle(output_img, (min_y, min_x), (max_y, max_x), (0, 1, 0), 10)
-        # cv2.rectangle(output_img,(min_y-100, min_x-100),(min_y + 100, min_x+100),(0,1,0),-1)
-        cv2.putText(output_img, label, (min_y, min_x), cv2.FONT_HERSHEY_SIMPLEX, fontScale=3.5, color=(1, 1, 1),
-                    thickness=12)
+    nms = idx_to_name(nms, names)
 
-plt.figure(figsize=(10, 10))
-plt.imshow(output_img)
-plt.show()
+    print("we found the following boxes after non-max suppression")
+    print(nms)
 
-print("here")
+    # ### Plotting the output
+    # I'm using opencv to draw rectangles around all detections
+    # and to write the name in text onto the image.
+    #
+    # The image has a very low resolution.
+    # For the output it is upscaled.
+    # The main reason for this is to allow high-res text.
+
+
+
+
+    img = batch[0][0]
+    output_img = img.copy()
+    dim_x, dim_y = output_img.shape[:2]
+    factor = 5
+    output_img = cv2.resize(output_img, (dim_y * factor, dim_x * factor))
+
+    for label in nms:
+        boxes = nms[label]
+        for box in boxes:
+            min_x, min_y, max_x, max_y = box
+            min_x *= factor
+            min_y *= factor
+            max_x *= factor
+            max_y *= factor
+
+            cv2.rectangle(output_img, (min_y, min_x), (max_y, max_x), (0, 1, 0), 10)
+            # cv2.rectangle(output_img,(min_y-100, min_x-100),(min_y + 100, min_x+100),(0,1,0),-1)
+            cv2.putText(output_img, label, (min_y, min_x), cv2.FONT_HERSHEY_SIMPLEX, fontScale=3.5, color=(1, 1, 1),
+                        thickness=12)
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(output_img)
+    plt.show()
+
+    print("here")
