@@ -124,25 +124,21 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             batch[b] = img
 
             # this is a preparation step which looks at every object and converts the gt data to a more usable format
-            # for every object we want to know
-            # 1. the label
-            # 2. the cell in which this object is present
-            # 3. the offsets and sizes of the object
             processed_objects = []
             for obj in objects:
                 # the label
                 label = int(obj[0])
 
                 # first process the x and y coordinates
-                obj_x, obj_y = obj[1], obj[2]
+                cx, cy = obj[1], obj[2]
 
                 # this is supposed to be a percentage
-                assert 0 <= obj_x <= 1, "x should be in [0,1]"
-                assert 0 <= obj_y <= 1, "y should be in [0,1]"
+                assert 0 <= cx <= 1, "x should be in [0,1]"
+                assert 0 <= cy <= 1, "y should be in [0,1]"
 
                 # convert to network coordinates, [0, out_x] and [0, out_y]
-                obj_x = obj_x * out_x
-                obj_y = obj_y * out_y
+                obj_x = cx * out_x
+                obj_y = cy * out_y
 
                 # the coordinate should be relative to their cell
                 rel_x = obj_x - np.floor(obj_x)
@@ -161,11 +157,11 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 assert 0 <= size_x <= 1, "width should be in [0,1]"
                 assert 0 <= size_y <= 1, "height should be in [0,1]"
 
-                # now fill some of the data arrays, coordinates are in [0, out_x]
-                coords[b, cell_number, :, 0] = rel_x - 0.5 * size_x * out_x
-                coords[b, cell_number, :, 1] = rel_y - 0.5 * size_y * out_y
-                coords[b, cell_number, :, 2] = rel_x + 0.5 * size_x * out_x
-                coords[b, cell_number, :, 3] = rel_y + 0.5 * size_y * out_y
+                # now fill some of the data arrays, coordinates are in [0, 1]
+                gt_coords[b, cell_number, :, 0] = cx - 0.5 * size_x
+                gt_coords[b, cell_number, :, 1] = cy - 0.5 * size_y
+                gt_coords[b, cell_number, :, 2] = cx + 0.5 * size_x
+                gt_coords[b, cell_number, :, 3] = cy + 0.5 * size_y
 
                 # plug all of this together
                 processed_object = [cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx]
@@ -179,8 +175,8 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             # please note the difference between boxes and coordinates
             # the boxes are x,y,w,h
             # the coordinates are [x_min, y_min, x_max, y_max] -> the vertices of the box
-            gt_upper_left_corner[b] = coords[b, :, :, 0:2]
-            gt_lower_right_corner[b] = coords[b, :, :, 2:4]
+            gt_upper_left_corner[b] = gt_coords[b, :, :, 0:2]
+            gt_lower_right_corner[b] = gt_coords[b, :, :, 2:4]
 
             # calculate width and height
             gt_width_height = gt_lower_right_corner[b] - gt_upper_left_corner[b];
@@ -191,6 +187,9 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
             gt_areas[b, :] = gt_area
 
+            default_upper_left_corner = default_upper_left_corner.reshape((out_x*out_y, B, 2))
+            default_lower_right_corner = default_lower_right_corner.reshape((out_x*out_y, B, 2))
+
             # now compare the areas of the default boxes and the ground truth boxes
             inner_upper_left = np.maximum(gt_upper_left_corner, default_upper_left_corner)
             inner_lower_right = np.minimum(gt_lower_right_corner, default_lower_right_corner)
@@ -199,7 +198,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             intersection = diag[:, :, :, 0] * diag[:, :, :, 1]
 
             # align shapes to the layout of the gt areas
-            default_areas = default_areas.reshape((1, 1, B, 1))
+            default_areas = default_areas.reshape((1, out_x*out_y, B, 1))
             intersection = intersection.reshape((batch_size, out_x * out_y, B, 1))
 
             # IoU with smoothing to prevent division by zero
