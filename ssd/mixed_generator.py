@@ -248,20 +248,17 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
                 # the target for the bounding box regression
                 # x and y coordinates: an offset to the cell's center, scaled by default box width and height
-                g_hat[b, cell_number, :, 0] = rel_x
-                g_hat[b, cell_number, :, 1] = rel_y
+                
+                xy_idx = np.s_[b, cell_number, :, :2]
+                wh_idx = np.s_[b, cell_number, :, 2:]
+                
+                target_coords[xy_idx] = rel_x, rel_y
 
                 # width and height, scaled by default box, scaled by log
-                g_hat[b, cell_number, :, 2] = size_x
-                g_hat[b, cell_number, :, 3] = size_y
+                target_coords[wh_idx] = size_x, size_y
 
-                g_hat[b, cell_number, :, 2:3] *= (out_x, out_y)
-                g_hat[b, cell_number, :, 2:3] /= anchors
-                g_hat[b, cell_number, :, 2:3] = np.log(g_hat[b, cell_number, :, 2:3])
-
-
-                #g_hat[b, cell_number, :, 2] = np.log(size_x / default_boxes[:, 0])
-                #g_hat[b, cell_number, :, 3] = np.log(size_y / default_boxes[:, 1])
+                target_coords[wh_idx] =target_coords[wh_idx] / anchors
+                target_coords[wh_idx] = np.log(target_coords[wh_idx])
 
                 # visualization
                 visualize = False
@@ -299,7 +296,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         assert np.all(gt_areas>=0), "an object must not have negative area"
 
         # the huge blob of data
-        data = [labels, objectness, g_hat]
+        data = [labels, objectness, target_coords]
         pointer = 0
         for item in data:
             length = item.shape[-1]

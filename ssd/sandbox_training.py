@@ -213,7 +213,7 @@ loss = loss_func(*meta_data)
 from keras.optimizers import Adam, SGD
 
 
-train = False
+train = True
 if train:
 
     # check this: are the parameters correct ?
@@ -250,7 +250,7 @@ if train:
 
     histories = []
     times = []
-    for i in range(5):
+    for i in range(20):
         history = detection_model.fit_generator(train_gen, 6400 // batch_size,
                                                 epochs=5,
                                                 callbacks=[nan_terminator],
@@ -291,7 +291,9 @@ if train:
     plt.title("loss")
     plt.show()
 
-    detection_model.save_weights("models/detection_model_trained2.h5")
+    detection_model.save_weights("models/detection_model_trained_mixed.h5")
+
+    print("finished training")
 
 
 else:
@@ -299,7 +301,7 @@ else:
     #with open("models/detection_model.json") as json_file:
     #    json_string = json_file.read()
     #    detection_model = model_from_json(json_string)
-    detection_model.load_weights("models/detection_model_trained2.h5")
+    detection_model.load_weights("models/detection_model_trained_mixed.h5")
 
 # # Evaluation
 
