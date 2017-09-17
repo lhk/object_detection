@@ -58,6 +58,9 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
     while True:
 
+        # just for debugging, if you need this to be deterministic
+        #np.random.seed(0)
+
         # batch to store the images
         batch = np.zeros((batch_size, in_x, in_y, 3))
 
@@ -145,8 +148,6 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             img = preprocess_yolo(img)
 
             batch[b] = img
-
-            # HERE IS THE YOLO SPECIFIC CODE
 
             # this is a preparation step which looks at every object and converts the gt data to a more usable format
             # for every object we want to know
@@ -239,9 +240,9 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             if visualize:
                 import matplotlib.pyplot as plt
 
-                f, axes = plt.subplots(2, 2)
-                axes[0, 0].imshow(img)
-                axes[0, 1].imshow(IoU_img[0,:,:,0,0])
+                f, axes = plt.subplots(1, 2)
+                axes[0].imshow(img)
+                axes[1].imshow(IoU_img[b,:,:,0,0])
                 plt.show()
 
             # attention: every cell in the output can predict at most 1 object
@@ -269,7 +270,7 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 labels[b, cell_number, :, label] = 1
 
                 # store the objectness
-                #objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
+                objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
                 objectness[b, cell_number, IoU[B, cell_number].argmax(), :]=1
 
                 # the target for the bounding box regression
@@ -286,30 +287,31 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
                 if visualize:
                     if np.any(objectness[b, cell_number, :, :] == 1):
                         idxes = np.where(objectness[b, cell_number, :, :] == 1)
-                        box = idxes[0][0]
+                        for (i,j) in zip(idxes[0], idxes[1]):
+                            box = idxes[i][j]
 
-                        temp = np.zeros((out_x ,out_x))
-                        x_min = coords[b, cell_number, box, 0] + x_idx
-                        y_min = coords[b, cell_number, box, 1] + y_idx
-                        x_max = coords[b, cell_number, box, 2] + x_idx
-                        y_max = coords[b, cell_number, box, 3] + y_idx
+                            temp = np.zeros((out_x ,out_x))
+                            x_min = coords[b, cell_number, box, 0] + x_idx
+                            y_min = coords[b, cell_number, box, 1] + y_idx
+                            x_max = coords[b, cell_number, box, 2] + x_idx
+                            y_max = coords[b, cell_number, box, 3] + y_idx
 
-                        x_min = int(x_min)
-                        y_min = int(y_min)
-                        x_max = int(x_max)
-                        y_max = int(y_max)
+                            x_min = int(x_min)
+                            y_min = int(y_min)
+                            x_max = int(x_max)
+                            y_max = int(y_max)
 
-                        temp[x_min:x_max, y_min:y_max]=1
+                            temp[x_min:x_max, y_min:y_max]=1
 
-                        import matplotlib.pyplot as plt
+                            import matplotlib.pyplot as plt
 
-                        f, axes = plt.subplots(2, 2)
-                        axes[0, 0].imshow(img)
-                        axes[0, 1].imshow(IoU_img[0, :, :, 0, 0])
-                        axes[1, 0].imshow(temp)
-                        plt.show()
+                            f, axes = plt.subplots(2, 2)
+                            axes[0, 0].imshow(img)
+                            axes[0, 1].imshow(IoU_img[b, :, :, 0, 0])
+                            axes[1, 0].imshow(temp)
+                            plt.show()
 
-                        print("found one")
+                            print("found one")
 
 
         # asserts to make sure the arrays are correct

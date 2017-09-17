@@ -32,48 +32,40 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         # just for debugging, if you need this to be deterministic
         #np.random.seed(0)
 
-        # batch to store the images
+        # this is the batch fed to the network
+        # only this is actual input to the forward pass
+        # the other numpy arrays are for the calculation of the loss
         batch = np.zeros((batch_size, in_x, in_y, 3))
 
-        # for training, we need to provide numpy arrays that can be fed to tensorflow
-        # on the tensorflow side, the correct values are then compared with the predicted values
-        # the predictions are different for each anchor box
-        # the output of the network has the dimension [batch_size, out_x, out_y, anchor boxes, data]
-        # this is reshaped to [batch_size, out_x * out_y, anchor boxes, data] -> a vector of anchor boxes for every batch
-        # the data contains many different informations
-        # I'm using the same format to feed data
-        # this is inefficient, since some information is the same for all bounding boxes
-        # but it makes broadcasting easier in the loss function
-
-        # this is a one-hot encoding of the object
+        # this is a one-hot encoding of the labels of the objects
         labels = np.zeros([batch_size, out_x * out_y, B, C])
 
-        # this stores whether there is an object in the cell
+        # for every box: is there an object in this box
         objectness = np.zeros([batch_size, out_x * out_y, B, 1])
 
-        # this stores the object coordinates
-        # coordinates will go from 0 to out_x and 0 to out_y
-        # attention: this is only used for computing the corners and areas
-        # it is not passed to the loss
-        # the loss works on the boxes array
-        coords = np.zeros([batch_size, out_x * out_y, B, 4])
-
-        # corners of the gt box
+        # the ground_truth coordinates of the objects in this batch
+        gt_coords = np.zeros([batch_size, out_x*out_y, B, 4])
         gt_upper_left_corner = np.zeros([batch_size, out_x * out_y, B, 2])
         gt_lower_right_corner = np.zeros([batch_size, out_x * out_y, B, 2])
-
-        # areas of the gt boxes
         gt_areas = np.zeros([batch_size, out_x * out_y, B, 1])
 
-        # desired coordinate predictions
-        # TODO: this is important, if you change this, you need to adapt the evaluation
-        # I'm using the name from the SSD paper: g_hat is used for an L1 loss with the output of the layer
-        g_hat = np.zeros([batch_size, out_x * out_y, B, 4])
+        # the values to be predicted by the neural network
+        # this is the regression target for the coordinate prediction
+        # we predict 4 coordinates for every box
+        target_coords = np.zeros([batch_size, out_x * out_y, B, 4])
 
-        # the container to store all of this
-        # this is passed to the loss function, the different parts are then sliced out of this blob of data
-        # the C+10 is the sum of the sizes of the last dimension of everything passed ot the loss
+        # the loss formulation accepts a single tensor
+        # this blob contains all the data we need, in the loss function, we slice the following out of it:
+        # a one-hot encoding of the C classes -> C entries per box
+        # a binary encoding of objectness -> 1 entry per box
+        # the coordinates to be predicted -> 4 entries per box
+        #
+        # this blob is also passed to the network, for the loss
         blob = np.zeros((batch_size, out_x * out_y, B, C + 5))
+
+        # in order to calculate whether a box "contains" an object,
+        # we use the jacard overlap
+        # for that we need to have the default sizes of the predicted boxes
 
         # calculating coordinates and areas for the default boxes
         default_boxes = np.zeros((B, 2))
@@ -81,27 +73,38 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         default_size_x = default_boxes[:, 0]
         default_size_y = default_boxes[:, 1]
 
-        default_coords = np.zeros((B, 4))
-        default_coords[:, 0] = 0 - 0.5 * default_size_x * out_x
-        default_coords[:, 1] = 0 - 0.5 * default_size_y * out_y
-        default_coords[:, 2] = 0 + 0.5 * default_size_x * out_x
-        default_coords[:, 3] = 0 + 0.5 * default_size_y * out_y
+        # for every cell in the grid of output activations, we place the default boxes around the cell
+        # the default_boxes need to be moved to the center of the cell
+        # the corresponding grid of displacements is created here
+        m_grid = np.meshgrid(np.arange(out_x), np.arange(out_y), sparse=False, indexing='ij')
+        x_grid = m_grid[0]
+        y_grid = m_grid[1]
 
-        default_upper_left_corner = np.zeros((B, 2))
-        default_lower_right_corner = np.zeros((B, 2))
-        default_upper_left_corner[:] = default_coords[:,0:2]
-        default_lower_right_corner[:] = default_coords[:,2:4]
+        x_grid = x_grid.reshape(out_x, out_y, 1)
+        y_grid = y_grid.reshape(out_x, out_y, 1)
+
+        x_grid = x_grid / out_x
+        y_grid = y_grid / out_y
+
+        default_coords = np.zeros((out_x, out_y, B, 4))
+        default_coords[:, :, :, 0] = x_grid - 0.5 * default_size_x
+        default_coords[:, :, :, 1] = y_grid - 0.5 * default_size_y
+        default_coords[:, :, :, 2] = x_grid + 0.5 * default_size_x
+        default_coords[:, :, :, 3] = y_grid + 0.5 * default_size_y
+
+        default_coords = np.clip(default_coords, 0, 1)
+
+        default_upper_left_corner = np.zeros((out_x, out_y, B, 2))
+        default_lower_right_corner = np.zeros((out_x, out_y, B, 2))
+        default_upper_left_corner[:] = default_coords[:, :, :, 0:2]
+        default_lower_right_corner[:] = default_coords[:, :, :, 2:4]
 
         # calculate width and height
         default_width_height = default_lower_right_corner - default_upper_left_corner
 
         # calculate area
-        default_area = default_width_height[:, 0] * default_width_height[:,  1]
-        default_area = np.expand_dims(default_area, -1)
-
-        default_areas = np.zeros((B, 1))
-        default_areas[:] = default_area
-
+        default_areas = np.zeros((out_x, out_y, B, 1))
+        default_areas[:, :, :, 0] = default_width_height[:, :, :, 0] * default_width_height[:, :, :, 1]
 
 
         # fill the batch

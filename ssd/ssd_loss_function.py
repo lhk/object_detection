@@ -129,6 +129,7 @@ def loss_func(anchors,
     loss_labels = lambda_class * loss_labels
 
     # adding everything together
-    total_loss = loss_coords + loss_obj + loss_noobj + loss_labels
+    #total_loss = loss_coords + loss_obj + loss_noobj + loss_labels
+    total_loss = loss_obj + loss_noobj
 
     return total_loss
