@@ -171,7 +171,7 @@ temp = anchors[:, 0].copy()
 anchors[:, 0] = anchors[:, 1]
 anchors[:, 1] = temp
 
-scale = 1
+scale = 0.7
 
 train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=train_path)
 val_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=test_path)
@@ -213,7 +213,7 @@ loss = loss_func(*meta_data)
 from keras.optimizers import Adam, SGD
 
 
-train = True
+train = False
 if train:
 
     # check this: are the parameters correct ?
@@ -319,7 +319,7 @@ else:
 from lib.utils.ssd_prediction import extract_from_blob, get_probabilities
 
 np.random.seed(0)
-test_gen = val_gen
+test_gen = train_gen
 
 while True:
     # get some sample data
@@ -370,7 +370,7 @@ while True:
 
     from lib.utils.activations import np_sigmoid, softmax
 
-    from lib.nms import get_detections, apply_nms, idx_to_name
+    from lib.ssd_nms import get_detections, apply_nms, idx_to_name
 
     detections = get_detections(predictions[0], threshold, anchors, out_x, out_y, in_x, in_y, B, C)
 
