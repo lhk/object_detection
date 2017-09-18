@@ -79,8 +79,10 @@ class Augmenter:
         # threshold to attribute object to box
         IoU_threshold = self.IoU_threshold
 
+        config = self.config
+
         # get a list of pairs of (image_path, label_path)
-        image_label_pairs=parse_image_label_pairs(data_path)
+        image_label_pairs=self.image_label_pairs
 
 
         # just for debugging, if you need this to be deterministic
@@ -186,9 +188,6 @@ class Augmenter:
 
             # convert back to the format desired by yolo
             objects = minmax_to_wh(objects_minmax)
-
-            # convert image to yolo input format
-            img = preprocess_yolo(img)
 
             # convert image to yolo input format
             img = preprocess_yolo(img)
