@@ -9,6 +9,7 @@ from lib.parser.parser import parse_image_label_pairs, parse_labels
 
 from lib.preprocessing import preprocess_yolo
 from lib.utils.object import wh_to_minmax, minmax_to_wh, split, merge
+from lib.augmentations import augment
 #from lib.augmentations import augment
 
 
@@ -119,6 +120,22 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
             img = cv2.imread(pair[0])
             img = cv2.resize(img, (in_y, in_x)) # opencv wants (width, height) in numpy, y corresponds to width
             objects = parse_labels(pair[1])
+
+            # yolo expects bounding boxes in the [x, y, w, h] format
+            # this is the format in the label files
+            # the augmentations need boxes in [x_min, y_min, x_max, y_max]
+            # this is also the format used by tensorflow
+            objects_minmax = wh_to_minmax(objects)
+
+            # apply augmentations
+            # the config dictionary is only used here
+            img, objects_minmax = augment(img, objects_minmax, **config)
+
+            # convert back to the format desired by yolo
+            objects = minmax_to_wh(objects_minmax)
+
+            # convert image to yolo input format
+            img = preprocess_yolo(img)
 
             # convert image to yolo input format
             img = preprocess_yolo(img)
