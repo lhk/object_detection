@@ -13,22 +13,75 @@ from lib.augmentations import augment
 #from lib.augmentations import augment
 
 
-def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path, IoU_threshold=0.5, config=None):
-    # todo: in_x, out_x and scale are maybe redundant. can I calculate one value from the other two ?
+class Augmenter:
 
-    # config for the augmentation
-    if not config:
-        config={}
-        config["max_hsv_scale"]=[0.1, 0.5, 0.5]
-        config["max_rotation"]=10
-        config["max_shift"]=0.05
-        config["zoom_range"]=(0.8,1.2)
+    def __init__(self, data_path,
+                 in_x, in_y, out_x, out_y,
+                 scale, anchors, B, C,
+                 batch_size,
+                 IoU_threshold = 0.5, config = None):
 
-    # get a list of pairs of (image_path, label_path)
-    image_label_pairs=parse_image_label_pairs(data_path)
+        # misc
+        self.data_path = data_path
+        self.batch_size = batch_size
 
+        # network input and output size
+        self.in_x = in_x
+        self.in_y = in_y
+        self.out_x = out_x
+        self.out_y = out_y
 
-    while True:
+        # sizes and scale of the anchor boxes
+        self.scale = scale
+        self.anchors = anchors
+
+        # number of anchor boxes and classes
+        self.B = B
+        self.C = C
+
+        # threshold to attribute object to box
+        self.IoU_threshold = IoU_threshold
+
+        # config for the augmentation
+        if not config:
+            config = {}
+            config["max_hsv_scale"] = [0.1, 0.5, 0.5]
+            config["max_rotation"] = 10
+            config["max_shift"] = 0.05
+            config["zoom_range"] = (0.8, 1.2)
+        self.config = config
+
+        # get a list of pairs of (image_path, label_path)
+        self.image_label_pairs = parse_image_label_pairs(data_path)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+
+        data_path = self.data_path
+        batch_size = self.batch_size
+
+        # network input and output size
+        in_x = self.in_x
+        in_y = self.in_y
+        out_x = self.out_x
+        out_y = self.out_y
+
+        # sizes and scale of the anchor boxes
+        scale = self.scale
+        anchors = self.anchors
+
+        # number of anchor boxes and classes
+        B = self.B
+        C = self.C
+
+        # threshold to attribute object to box
+        IoU_threshold = self.IoU_threshold
+
+        # get a list of pairs of (image_path, label_path)
+        image_label_pairs=parse_image_label_pairs(data_path)
+
 
         # just for debugging, if you need this to be deterministic
         #np.random.seed(0)
@@ -256,10 +309,10 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
 
                 # the target for the bounding box regression
                 # x and y coordinates: an offset to the cell's center, scaled by default box width and height
-                
+
                 xy_idx = np.s_[b, cell_number, :, :2]
                 wh_idx = np.s_[b, cell_number, :, 2:]
-                
+
                 target_coords[xy_idx] = rel_x, rel_y
 
                 # width and height, scaled by default box, scaled by log
@@ -283,4 +336,4 @@ def generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_pa
         assert pointer==blob.shape[-1], "data needs to fit exactly into the blob"
         assert not np.any(np.isnan(blob)), "no value should be nan"
 
-        yield batch, blob
+        return batch, blob

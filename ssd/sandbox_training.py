@@ -373,7 +373,7 @@ while True:
 
     from lib.mixed_nms import get_detections, apply_nms, idx_to_name
 
-    detections = get_detections(predictions[0], threshold, anchors, out_x, out_y, in_x, in_y, B, C)
+    detections = get_detections(predictions[0], threshold, anchors*scale, out_x, out_y, in_x, in_y, B, C)
 
     print("number of detections: ", len(detections))
 
