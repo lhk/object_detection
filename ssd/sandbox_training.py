@@ -155,7 +155,7 @@ train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 #from ssd.ssd_generator import generate
-from ssd.mixed_generator import generate
+from ssd.mixed_generator import Augmenter
 batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
@@ -173,8 +173,8 @@ anchors[:, 1] = temp
 
 scale = 0.5
 
-train_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=train_path)
-val_gen =  generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path=test_path)
+train_gen =  Augmenter(train_path, in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size)
+val_gen =  Augmenter(test_path, in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size)
 
 
 # test the generator
@@ -183,6 +183,7 @@ imgs = batch[0]
 objects = batch[1]
 
 plt.imshow(imgs[0, :, :])
+
 
 # # Loss function
 #
@@ -213,7 +214,7 @@ loss = loss_func(*meta_data)
 from keras.optimizers import Adam, SGD
 
 
-train = True
+train = False
 if train:
 
     # check this: are the parameters correct ?
@@ -257,7 +258,7 @@ if train:
                                                 validation_data=val_gen,
                                                 validation_steps=1600 // batch_size,
                                                 # use_multiprocessing=False)
-                                                workers=1,
+                                                workers=4,
                                                 max_queue_size=24)
         histories.append(history)
         times.append(time.time())
