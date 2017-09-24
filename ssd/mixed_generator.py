@@ -304,7 +304,10 @@ class Augmenter:
 
                 # store the objectness
                 # objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
-                objectness[b, cell_number, IoU[B, cell_number].argmax(), :]=1
+                box_idx = IoU[B, cell_number].argmax()
+                # TODO: this index needs to be properly distributed. not always 0, but the other boxes too
+
+                objectness[b, cell_number, box_idx, :]=1
 
                 # the target for the bounding box regression
                 # x and y coordinates: an offset to the cell's center, scaled by default box width and height

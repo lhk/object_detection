@@ -36,8 +36,8 @@ extraction_model.summary()
 
 # the pretrained weights shouldn't be updated any more
 # I'm only using them for feature extraction
-for layer in extraction_model.layers:
-    layer.trainable = False
+#for layer in extraction_model.layers:
+#    layer.trainable = False
 
 # ### Extracting features from the pretrained model
 # Now I'm taking features from the pretrained model and concatenating them to one big feature map.
@@ -159,10 +159,10 @@ from ssd.mixed_generator import Augmenter
 batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
-anchors = np.zeros((B, 2))
-anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
 #anchors = np.zeros((B, 2))
-#anchors[:] = [[1, 0.3], [0.8, 0.4], [0.6, 0.6], [0.4, 0.8], [0.3, 1]]
+#anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
+anchors = np.zeros((B, 2))
+anchors[:] = [[1, 0.3], [0.8, 0.4], [0.6, 0.6], [0.4, 0.8], [0.3, 1]]
 
 # the anchors are given as width, height
 # this doesn't work with numpy's layout
@@ -214,11 +214,11 @@ loss = loss_func(*meta_data)
 from keras.optimizers import Adam, SGD
 
 
-train = False
+train = True
 if train:
 
     # check this: are the parameters correct ?
-    detection_model.compile(Adam(lr=0.00003), loss)
+    detection_model.compile(Adam(lr=0.00002), loss)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -251,7 +251,7 @@ if train:
 
     histories = []
     times = []
-    for i in range(20):
+    for i in range(5):
         history = detection_model.fit_generator(train_gen, 6400 // batch_size,
                                                 epochs=5,
                                                 callbacks=[nan_terminator],
