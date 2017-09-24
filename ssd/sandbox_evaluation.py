@@ -148,7 +148,7 @@ train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 # from ssd.ssd_generator import generate
-from ssd.mixed_generator import Augmenter
+from ssd_playground.mixed_generator import Augmenter
 
 batch_size = 32
 
@@ -192,7 +192,7 @@ plt.imshow(imgs[0, :, :])
 # Look at model.compile.
 
 # from ssd.ssd_loss_function import loss_func
-from ssd.mixed_loss_function import loss_func
+from ssd_playground.mixed_loss_function import loss_func
 
 meta_data = [anchors, out_x, out_y, B, C, lambda_class, lambda_coords, lambda_obj, lambda_noobj]
 loss = loss_func(*meta_data)
