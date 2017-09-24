@@ -22,8 +22,6 @@ C = 20  # number of classes
 
 in_x = 256
 in_y = 256
-out_x = 32
-out_y = 32
 
 lambda_coords = 10
 lambda_class = 2
@@ -51,13 +49,15 @@ test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # test_path = r"C:\Users\lhk\OneDrive\data\VOC\2007_test.txt"
 
 # iterator class to provide data to model.fit_generator
-from ssd.ssd_generator import generate
 
-batch_size = 64
+from ssd.mixed_generator import Augmenter
+batch_size = 32
 
 # anchor boxes are taken from the tiny yolo voc config
+#anchors = np.zeros((B, 2))
+#anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
 anchors = np.zeros((B, 2))
-anchors[:] = [[1.08, 1.19], [3.42, 4.41], [6.63, 11.38], [9.42, 5.11], [16.62, 10.52]]
+anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 
 # the anchors are given as width, height
 # this doesn't work with numpy's layout
@@ -66,14 +66,20 @@ temp = anchors[:, 0].copy()
 anchors[:, 0] = anchors[:, 1]
 anchors[:, 1] = temp
 
-scale = 0.7
-data_path = train_path
 
-train_gen = generate(in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size, data_path)
 
-# test the generator
-batch = next(train_gen)
-imgs = batch[0]
-objects = batch[1]
+out_x = [32, 24, 16, 8]
+out_y = [32, 24, 16, 8]
+scale = [0.4, 0.6, 0.8, 1]
 
-plt.imshow(imgs[0, :, :])
+train_gen =  Augmenter(train_path, in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size)
+
+np.random.seed(0)
+while True:
+    # test the generator
+    batch = next(train_gen)
+    imgs = batch[0]
+    objects = batch[1]
+
+    #plt.imshow(imgs[0, :, :])
+    #plt.show()
