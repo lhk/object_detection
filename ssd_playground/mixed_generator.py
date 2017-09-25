@@ -155,7 +155,6 @@ class Augmenter:
         # the indices at which new layers start are recorded
 
         self.default_boxes_flat = np.concatenate([arr.reshape((-1, 2)) for arr in self.default_boxes_list], axis=0)
-        default_boxes_indices = [arr.reshape((-1,2)).shape[0] for arr in self.default_boxes_list]
 
         self.default_upper_left_corner_flat = np.concatenate(
             [arr.reshape((-1, 2)) for arr in self.default_upper_left_corner_list], axis=0)
@@ -167,26 +166,22 @@ class Augmenter:
         default_lower_right_corner_indices = [arr.reshape((-1, 2)).shape[0] for arr in
                                                   self.default_lower_right_corner_list]
 
-        self.default_areas_flat = np.concatenate([arr.reshape((-1, 1)) for arr in self.default_areas_list], axis=0)
-        default_areas_indices = [arr.reshape((-1, 1)).shape[0] for arr in
+        self.default_areas_flat = np.concatenate([arr.reshape((-1,)) for arr in self.default_areas_list], axis=0)
+        default_areas_indices = [arr.reshape((-1,)).shape[0] for arr in
                                                   self.default_areas_list]
 
-        assert default_boxes_indices == \
-               default_upper_left_corner_indices == \
+        assert default_upper_left_corner_indices == \
                default_lower_right_corner_indices == \
                default_areas_indices, "all the indices must be the same"
 
-        self.flat_indices = default_boxes_indices
+        self.flat_indices = default_upper_left_corner_indices
 
 
     def flat_index_to_layer(self, index):
         output_layer = 0
-        while True:
+        while index - self.flat_indices[output_layer] > 0:
             index -= self.flat_indices[output_layer]
-            if index > 0:
-                output_layer+=1
-            else:
-                break
+            output_layer+=1
 
         return output_layer, index
 
@@ -316,7 +311,7 @@ class Augmenter:
                 inner_lower_right = np.minimum(gt_lower_right_corner, self.default_lower_right_corner_flat)
                 diag = inner_lower_right - inner_upper_left
                 diag = np.maximum(diag, 0.)
-                intersection = diag[0] * diag[1]
+                intersection = diag[:,0] * diag[:,1]
 
                 # IoU with smoothing to prevent division by zero
                 union = self.default_areas_flat + gt_area - intersection
