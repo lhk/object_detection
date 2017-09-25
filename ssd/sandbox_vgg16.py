@@ -154,7 +154,7 @@ anchors = np.zeros((B, 2))
 anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 #anchors[:] = [[0.8, 0.45], [0.6, 0.6], [0.45, 0.8]]
 
-batch_size = 16
+batch_size = 12
 
 train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
 test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
@@ -197,9 +197,9 @@ from keras.models import model_from_json
 
 # check this: are the parameters correct ?
 
-training = True
+training = False
 if training:
-    detection_model.compile(Adam(lr=0.00002), loss=loss_functions)
+    detection_model.compile(Adam(lr=0.00004), loss=loss_functions)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -232,7 +232,7 @@ if training:
 
     histories = []
     times = []
-    for i in range(20):
+    for i in range(1):
         history = detection_model.fit_generator(train_gen, 6400 // batch_size,
                                                 epochs=5,
                                                 callbacks=[nan_terminator],
@@ -277,11 +277,11 @@ if training:
 
     print("finished training")
 
-
-# with open("models/detection_model.json") as json_file:
-#    json_string = json_file.read()
-#    detection_model = model_from_json(json_string)
-detection_model.load_weights("models/vgg16_1.h5")
+else:
+    # with open("models/detection_model.json") as json_file:
+    #    json_string = json_file.read()
+    #    detection_model = model_from_json(json_string)
+    detection_model.load_weights("models/vgg16_1.h5")
 
 # # Evaluation
 
@@ -306,41 +306,67 @@ from tqdm import tqdm
 for i in tqdm(range(50)):
     # get some sample data
     batch = next(test_gen)
+    imgs = batch[0]
+    blobs = batch[1]
 
     # feed the data to the model
-    predictions = detection_model.predict(batch[0])
+    predictions = detection_model.predict(imgs)
 
-    predictions = predictions.reshape((-1, out_x, out_y, B, C + 5))
+    # list of all detections
+    detections=[]
 
-    classes = predictions[:, :, :, :, 5:]
-    classes = softmax(classes)
-    max_classes = classes.max(axis=-1)
+    # process every output individually
+    for i in range(num_outputs):
 
-    objectness = np_sigmoid(predictions[:, :, :, :, 4])
+        prediction = predictions[i]
+        out_x = out_x_list[i]
+        out_y = out_y_list[i]
+        scale = scale_list[i]
 
-    probs = max_classes * objectness
+        blob = blobs[i]
 
-    # probs is along the B dimension
-    # for every cell in the output activation map, get the best bounding box score
-    max_probs = probs.max(axis=-1)
+        # we only look at the first prediction
+        prediction = prediction.reshape((-1, out_x, out_y, B, C + 5))
+        prediction = prediction[0]
+        img = imgs[0]
 
-    threshold = 0.3
-    thresholded = max_probs > threshold
+        # ### Comparing given objectness with confidence of the network
 
-    # which coordinates are bigger than the threshold ?
-    batch_row_col = np.where(thresholded)
+        # extract the given objectness for this image
+        loss_dict = extract_from_blob(blob, out_x, out_y, B, C)
 
-    detections = []
-    # look at all the coordinates found by the thresholding
-    for batch, row, col in zip(batch_row_col[0], batch_row_col[1], batch_row_col[2]):
-        # for this coordinate, find the box with the highest objectness
-        current_probs = objectness[batch, row, col]
-        box_idx = np.argmax(current_probs)
+        # read the given objectness out of the loss dictionary
+        f_objectness = loss_dict["f_objectness"].reshape((-1, out_x, out_y, B))
 
-        if box_idx in indices:
-            indices[box_idx] += 1
-        else:
-            indices[box_idx] = 1
+        classes = prediction[:, :, :, 5:]
+        classes = softmax(classes)
+        max_classes = classes.max(axis=-1)
 
-print("finished")
-print(indices)
+        objectness = np_sigmoid(prediction[:, :, :, 4])
+
+        probs = max_classes * objectness
+
+        # probs is along the B dimension
+        # for every cell in the output activation map, get the best bounding box score
+        max_probs = probs.max(axis=-1)
+
+        threshold = 0.3
+        thresholded = max_probs > threshold
+
+        # which coordinates are bigger than the threshold ?
+        batch_row_col = np.where(thresholded)
+
+        f, axes = plt.subplots(1, 4, figsize=(10, 10))
+
+        axes[0].imshow(f_objectness[0, :, :, 0])
+        axes[0].set_title("given objectness")
+
+        axes[1].imshow(max_probs)
+        axes[1].set_title("confidence")
+
+        axes[2].imshow(thresholded)
+        axes[2].set_title("thresholded")
+
+        axes[3].imshow(img)
+        axes[3].set_title("original image")
+        plt.show()
