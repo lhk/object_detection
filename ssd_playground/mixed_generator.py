@@ -15,6 +15,7 @@ from keras.applications.imagenet_utils import preprocess_input
 
 import matplotlib.pyplot as plt
 
+from lib.plot_utils import *
 
 # from lib.augmentations import augment
 
@@ -340,6 +341,9 @@ class Augmenter:
             out_y = out_y_list[i]
             scale = scale_list[i]
 
+            # what are the objects that have to be predicted by this layer ?
+            assigned_objects=assigned_objects_batch[i]
+
             # this is a one-hot encoding of the labels of the objects
             labels = np.zeros([batch_size, out_x * out_y, B, C])
 
@@ -366,60 +370,20 @@ class Augmenter:
             # this blob is also passed to the network, for the loss
             blob = np.zeros((batch_size, out_x * out_y, B, C + 5))
 
-            # in order to calculate whether a box "contains" an object,
-            # we use the jacard overlap
-            # for that we need to have the default sizes of the predicted boxes
-            # and this is computed for every scale and all the resolutions
-            scaled_anchors = anchors * scale
 
-            # calculating coordinates and areas for the default boxes
-            default_boxes = np.zeros((B, 2))
-            default_boxes[:] = scaled_anchors
-            default_size_x = default_boxes[:, 0]
-            default_size_y = default_boxes[:, 1]
-
-            # for every cell in the grid of output activations, we place the default boxes around the cell
-            # the default_boxes need to be moved to the center of the cell
-            # the corresponding grid of displacements is created here
-            m_grid = np.meshgrid(np.arange(out_x), np.arange(out_y), sparse=False, indexing='ij')
-            x_grid = m_grid[0]
-            y_grid = m_grid[1]
-
-            x_grid = x_grid.reshape(out_x, out_y, 1)
-            y_grid = y_grid.reshape(out_x, out_y, 1)
-
-            x_grid = x_grid / out_x
-            y_grid = y_grid / out_y
-
-            default_coords = np.zeros((out_x, out_y, B, 4))
-            default_coords[:, :, :, 0] = x_grid - 0.5 * default_size_x
-            default_coords[:, :, :, 1] = y_grid - 0.5 * default_size_y
-            default_coords[:, :, :, 2] = x_grid + 0.5 * default_size_x
-            default_coords[:, :, :, 3] = y_grid + 0.5 * default_size_y
-
-            default_coords = np.clip(default_coords, 0, 1)
-
-            default_upper_left_corner = np.zeros((out_x, out_y, B, 2))
-            default_lower_right_corner = np.zeros((out_x, out_y, B, 2))
-            default_upper_left_corner[:] = default_coords[:, :, :, 0:2]
-            default_lower_right_corner[:] = default_coords[:, :, :, 2:4]
-
-            # calculate width and height
-            default_width_height = default_lower_right_corner - default_upper_left_corner
-
-            # calculate area
-            default_areas = np.zeros((out_x, out_y, B, 1))
-            default_areas[:, :, :, 0] = default_width_height[:, :, :, 0] * default_width_height[:, :, :, 1]
-
-            # fill the batch
+            # go through the batch dimension and fill the numpy arrays
             for b in range(batch_size):
 
-                # convert back to the format desired by yolo
-                objects = object_list[b]
+                # the assigned_objects have to be predicted by this layer,
+                # assigned_objects[b] correspond to the current sample in the batch
+                objects = assigned_objects[b]
 
                 # this is a preparation step which looks at every object and converts the gt data to a more usable format
                 processed_objects = []
-                for obj in objects:
+                for obj, index in objects:
+
+                    cell_idx_x, cell_idx_y, box_idx = np.unravel_index(index, (out_x, out_y, B))
+
                     # the label
                     label = int(obj[0])
 
@@ -461,6 +425,16 @@ class Augmenter:
                     processed_object = [cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx]
                     processed_objects.append(processed_object)
 
+                    vis = True
+                    if vis:
+                        canvas = create_canvas(100, 100, True)
+                        draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
+                        scaled_anchors = anchors * scale
+                        b = 0
+                        wh = scaled_anchors[b]
+                        draw_rect(canvas, (cell_idx_x / out_x, cell_idx_y / out_y, *wh), (0, 0, 1), 1)
+                        plot_canvas(canvas)
+
                 # for every cell, for every object, calculate the area
                 # this is done by taking the upper left and lower right corner
                 # they can then be substracted to get width and height
@@ -479,33 +453,6 @@ class Augmenter:
 
                 gt_areas[b, :] = gt_area
 
-                default_upper_left_corner = default_upper_left_corner.reshape((out_x * out_y, B, 2))
-                default_lower_right_corner = default_lower_right_corner.reshape((out_x * out_y, B, 2))
-
-                # now compare the areas of the default boxes and the ground truth boxes
-                inner_upper_left = np.maximum(gt_upper_left_corner, default_upper_left_corner)
-                inner_lower_right = np.minimum(gt_lower_right_corner, default_lower_right_corner)
-                diag = inner_lower_right - inner_upper_left
-                diag = np.maximum(diag, 0.)
-                intersection = diag[:, :, :, 0] * diag[:, :, :, 1]
-
-                # align shapes to the layout of the gt areas
-                default_areas = default_areas.reshape((1, out_x * out_y, B, 1))
-                intersection = intersection.reshape((batch_size, out_x * out_y, B, 1))
-
-                # IoU with smoothing to prevent division by zero
-                union = default_areas + gt_areas - intersection
-                union = np.maximum(union, 0.)
-                eps = 0.01
-                IoU = intersection / (eps + union)
-
-                # attention: every cell in the output can predict at most 1 object
-                # if there is more than one object in the cell, later objects will override earlier objects
-                # we do the following
-                # 1. fill the labels array with a one-hot vector for the classes
-                # 2. store the objectness
-                # 3. store the object sizes
-                # 4. compare the object to the default boxes and determine which default boxes are active
 
                 # TODO: the objectness determines wether predictions are considered in the loss function
                 # in yolo, the prediction with the highest IoU will be chosen
