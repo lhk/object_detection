@@ -319,8 +319,8 @@ class Augmenter:
                     intersection = diag[:, 0] * diag[:, 1]
 
                     # reshaping to align for broadcasting
-                    intersection = intersection.reshape((B,1))
-                    default_area = default_area.reshape((B,1))
+                    intersection = intersection.reshape((B, 1))
+                    default_area = default_area.reshape((B, 1))
 
                     # IoU with smoothing to prevent division by zero
                     union = default_area + gt_area - intersection
@@ -330,8 +330,8 @@ class Augmenter:
 
                     IoUs.append(IoU)
 
-                #reshape IoUs to expose dimension for the layer
-                IoUs = [IoU.reshape((1,B)) for IoU in IoUs]
+                # reshape IoUs to expose dimension for the layer
+                IoUs = [IoU.reshape((1, B)) for IoU in IoUs]
 
                 # convert this to a numpy array
                 IoU_concatenated = np.concatenate(IoUs, axis=0)
@@ -340,8 +340,10 @@ class Augmenter:
                 best_IoU = IoU_concatenated.argmax()
                 best_IoU = np.unravel_index(best_IoU, IoU_concatenated.shape)
 
+                best_layer = best_IoU[0]
+                best_box = best_IoU[1]
 
-                assigned_objects[layer].append((object))
+                assigned_objects[best_layer].append((object, best_box))
 
             # write these objects into the outer layer
             for layer in range(self.num_outputs):
@@ -394,19 +396,16 @@ class Augmenter:
 
                 # this is a preparation step which looks at every object and converts the gt data to a more usable format
                 processed_objects = []
-                for obj, index in objects:
+                for obj, box_index in objects:
 
-                    cell_idx_x, cell_idx_y, box_idx = np.unravel_index(index, (out_x, out_y, B))
+                    # deconstruct the object
+                    label, cx, cy, size_x, size_y = object
 
-                    # the label
-                    label = int(obj[0])
-
-                    # first process the x and y coordinates
-                    cx, cy = obj[1], obj[2]
-
-                    # this is supposed to be a percentage
                     assert 0 <= cx <= 1, "x should be in [0,1]"
                     assert 0 <= cy <= 1, "y should be in [0,1]"
+
+                    assert 0 <= size_x <= 1, "width should be in [0,1]"
+                    assert 0 <= size_y <= 1, "height should be in [0,1]"
 
                     # convert to network coordinates, [0, out_x] and [0, out_y]
                     obj_x = cx * out_x
@@ -419,63 +418,12 @@ class Augmenter:
                     # the number of the corresponding cell
                     x_idx = np.floor(obj_x)
                     y_idx = np.floor(obj_y)
+                    x_idx = int(x_idx)
+                    y_idx = int(y_idx)
                     cell_number = x_idx * out_y + y_idx
                     cell_number = int(cell_number)
 
-                    # extract width and height
-                    size_x = obj[3]
-                    size_y = obj[4]
-
-                    assert 0 <= size_x <= 1, "width should be in [0,1]"
-                    assert 0 <= size_y <= 1, "height should be in [0,1]"
-
-                    # now fill some of the data arrays, coordinates are in [0, 1]
-                    gt_coords[b, cell_number, :, 0] = cx - 0.5 * size_x
-                    gt_coords[b, cell_number, :, 1] = cy - 0.5 * size_y
-                    gt_coords[b, cell_number, :, 2] = cx + 0.5 * size_x
-                    gt_coords[b, cell_number, :, 3] = cy + 0.5 * size_y
-
-                    # plug all of this together
-                    processed_object = [cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx]
-                    processed_objects.append(processed_object)
-
-                    vis = True
-                    if vis:
-                        canvas = create_canvas(100, 100, True)
-                        draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
-                        scaled_anchors = anchors * scale
-                        b = 0
-                        wh = scaled_anchors[b]
-                        draw_rect(canvas, (cell_idx_x / out_x, cell_idx_y / out_y, *wh), (0, 0, 1), 1)
-                        plot_canvas(canvas)
-
-                # for every cell, for every object, calculate the area
-                # this is done by taking the upper left and lower right corner
-                # they can then be substracted to get width and height
-                # please note the difference between boxes and coordinates
-                # the boxes are x,y,w,h
-                # the coordinates are [x_min, y_min, x_max, y_max] -> the vertices of the box
-                gt_upper_left_corner[b] = gt_coords[b, :, :, 0:2]
-                gt_lower_right_corner[b] = gt_coords[b, :, :, 2:4]
-
-                # calculate width and height
-                gt_width_height = gt_lower_right_corner[b] - gt_upper_left_corner[b];
-
-                # calculate area
-                gt_area = gt_width_height[:, :, 0] * gt_width_height[:, :, 1]
-                gt_area = np.expand_dims(gt_area, -1)
-
-                gt_areas[b, :] = gt_area
-
-                # TODO: the objectness determines wether predictions are considered in the loss function
-                # in yolo, the prediction with the highest IoU will be chosen
-                # that is chosen after the forward pass
-                # in ssd the boxes are chosen offline, here in the code
-                # in the loss function, no IoU will be computed
-                # that means that we no longer pass objectness = 1 for every box
-                # but rather determine which boxes have sufficient overlap first
-                for obj in processed_objects:
-                    cell_number, label, rel_x, rel_y, size_x, size_y, x_idx, y_idx = obj
+                    # now fill the arrays that will later be combined into the blob
 
                     # maybe we have already processed an object for this cell
                     # we will only consider one such object
@@ -483,17 +431,8 @@ class Augmenter:
                     labels[b, cell_number, :, :] = 0
                     labels[b, cell_number, :, label] = 1
 
-                    # store the objectness
-                    objectness[b, cell_number, :, :] = IoU[b, cell_number, :, :] > IoU_threshold
-
-                    obj_slice = objectness[b, cell_number, :, :]
-                    iou_slice = IoU[b, cell_number, :, :]
-
-                    # box_idx = IoU[B, cell_number].argmax()
-                    # objectness[b, cell_number, box_idx, :]=1
-                    # TODO: this index needs to be properly distributed. not always 0, but the other boxes too
-                    # the target for the bounding box regression
-                    # x and y coordinates: an offset to the cell's center, scaled by default box width and height
+                    # the index of the best default box has already been determined
+                    objectness[b, cell_number, box_index, 0] = 1
 
                     xy_idx = np.s_[b, cell_number, :, :2]
                     wh_idx = np.s_[b, cell_number, :, 2:]
@@ -506,8 +445,14 @@ class Augmenter:
                     target_coords[wh_idx] = target_coords[wh_idx] / scaled_anchors
                     target_coords[wh_idx] = np.log(target_coords[wh_idx])
 
-            # asserts to make sure the arrays are correct
-            assert np.all(gt_areas >= 0), "an object must not have negative area"
+                    vis = True
+                    if vis:
+                        canvas = create_canvas(100, 100, True)
+                        draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
+                        scaled_anchors = anchors * scale
+                        b = 0
+                        wh = scaled_anchors[b]
+                        plot_canvas(canvas)
 
             # the huge blob of data
             data = [labels, objectness, target_coords]
