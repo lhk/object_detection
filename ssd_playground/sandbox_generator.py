@@ -70,7 +70,7 @@ anchors[:, 1] = temp
 
 out_x = [32, 24, 16, 8]
 out_y = [32, 24, 16, 8]
-scale = [0.4, 0.6, 0.8, 1]
+scale = [0.2, 0.4, 0.75, 1]
 
 train_gen =  Augmenter(train_path, in_x, in_y, out_x, out_y, scale, anchors, B, C, batch_size)
 
