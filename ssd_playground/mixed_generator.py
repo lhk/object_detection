@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from lib.plot_utils import *
 
+
 # from lib.augmentations import augment
 
 
@@ -151,40 +152,9 @@ class Augmenter:
 
             self.default_areas_list.append(default_areas)
 
-        # creating flat lists that contain all boxes, corners, areas
-        # in order to determine which part of the lists belongs to which output layer,
-        # the indices at which new layers start are recorded
-
-        self.default_boxes_flat = np.concatenate([arr.reshape((-1, 2)) for arr in self.default_boxes_list], axis=0)
-
-        self.default_upper_left_corner_flat = np.concatenate(
-            [arr.reshape((-1, 2)) for arr in self.default_upper_left_corner_list], axis=0)
-        default_upper_left_corner_indices = [arr.reshape((-1,2)).shape[0] for arr in self.default_upper_left_corner_list]
-
-
-        self.default_lower_right_corner_flat = np.concatenate(
-            [arr.reshape((-1, 2)) for arr in self.default_lower_right_corner_list], axis=0)
-        default_lower_right_corner_indices = [arr.reshape((-1, 2)).shape[0] for arr in
-                                                  self.default_lower_right_corner_list]
-
-        self.default_areas_flat = np.concatenate([arr.reshape((-1,)) for arr in self.default_areas_list], axis=0)
-        default_areas_indices = [arr.reshape((-1,)).shape[0] for arr in
-                                                  self.default_areas_list]
-
-        assert default_upper_left_corner_indices == \
-               default_lower_right_corner_indices == \
-               default_areas_indices, "all the indices must be the same"
-
-        self.flat_indices = default_upper_left_corner_indices
-
-
-    def flat_index_to_layer(self, index):
-        output_layer = 0
-        while index - self.flat_indices[output_layer] > 0:
-            index -= self.flat_indices[output_layer]
-            output_layer+=1
-
-        return output_layer, index
+            # creating flat lists that contain all boxes, corners, areas
+            # in order to determine which part of the lists belongs to which output layer,
+            # the indices at which new layers start are recorded
 
     def __iter__(self):
         return self
@@ -265,7 +235,7 @@ class Augmenter:
         # the assigned objects store: for every layer for every sample the list of objects
         # the mapping is: index of output layer -> nested list of objects (for every sample there's a list)
         # assigned_objects[layernumber] = [[objects for this layer in sample 1], [... in sample 2], [sample 3], ...]
-        assigned_objects_batch = {layer:[] for layer in range(self.num_outputs)}
+        assigned_objects_batch = {layer: [] for layer in range(self.num_outputs)}
 
         for i in range(batch_size):
 
@@ -307,30 +277,75 @@ class Augmenter:
                 # calculate area
                 gt_area = gt_width_height[0] * gt_width_height[1]
 
-                # now compare the areas of the default boxes and the ground truth boxes
-                inner_upper_left = np.maximum(gt_upper_left_corner, self.default_upper_left_corner_flat)
-                inner_lower_right = np.minimum(gt_lower_right_corner, self.default_lower_right_corner_flat)
-                diag = inner_lower_right - inner_upper_left
-                diag = np.maximum(diag, 0.)
-                intersection = diag[:,0] * diag[:,1]
+                # go through all layers, determine which cell holds this object
+                # calculate IoU and store it
+                # after having calculated all IoU values, determine the best
+                IoUs = []
+                for layer in range(self.num_outputs):
+                    out_x = out_x_list[layer]
+                    out_y = out_y_list[layer]
 
-                # IoU with smoothing to prevent division by zero
-                union = self.default_areas_flat + gt_area - intersection
-                union = np.maximum(union, 0.)
-                eps = 0.01
-                IoU = intersection / (eps + union)
+                    # convert to network coordinates, [0, out_x] and [0, out_y]
+                    obj_x = cx * out_x
+                    obj_y = cy * out_y
 
-                # find the best IoU
-                best_IoU = IoU.argmax()
+                    # the coordinate should be relative to their cell
+                    rel_x = obj_x - np.floor(obj_x)
+                    rel_y = obj_y - np.floor(obj_y)
 
-                layer, index = self.flat_index_to_layer(best_IoU)
+                    # the number of the corresponding cell
+                    x_idx = np.floor(obj_x)
+                    y_idx = np.floor(obj_y)
+                    x_idx = int(x_idx)
+                    y_idx = int(y_idx)
+                    cell_number = x_idx * out_y + y_idx
+                    cell_number = int(cell_number)
 
-                assigned_objects[layer].append((object, index))
+                    # get the default boxes for this layer
+                    default_upper_left_corners = self.default_upper_left_corner_list[layer]
+                    default_lower_right_corners = self.default_lower_right_corner_list[layer]
+                    default_areas = self.default_areas_list[layer]
+
+                    # and select the entries for this cell
+                    default_upper_left_corner = default_upper_left_corners[x_idx, y_idx]
+                    default_lower_right_corner = default_lower_right_corners[x_idx, y_idx]
+                    default_area = default_areas[x_idx, y_idx]
+
+                    # now compare the areas of the default boxes and the ground truth boxes
+                    inner_upper_left = np.maximum(gt_upper_left_corner, default_upper_left_corner)
+                    inner_lower_right = np.minimum(gt_lower_right_corner, default_lower_right_corner)
+                    diag = inner_lower_right - inner_upper_left
+                    diag = np.maximum(diag, 0.)
+                    intersection = diag[:, 0] * diag[:, 1]
+
+                    # reshaping to align for broadcasting
+                    intersection = intersection.reshape((B,1))
+                    default_area = default_area.reshape((B,1))
+
+                    # IoU with smoothing to prevent division by zero
+                    union = default_area + gt_area - intersection
+                    union = np.maximum(union, 0.)
+                    eps = 0.01
+                    IoU = intersection / (eps + union)
+
+                    IoUs.append(IoU)
+
+                #reshape IoUs to expose dimension for the layer
+                IoUs = [IoU.reshape((1,B)) for IoU in IoUs]
+
+                # convert this to a numpy array
+                IoU_concatenated = np.concatenate(IoUs, axis=0)
+
+                # determine the best fitting default box
+                best_IoU = IoU_concatenated.argmax()
+                best_IoU = np.unravel_index(best_IoU, IoU_concatenated.shape)
+
+
+                assigned_objects[layer].append((object))
 
             # write these objects into the outer layer
             for layer in range(self.num_outputs):
                 assigned_objects_batch[layer].append(assigned_objects[layer])
-
 
         # for every output, there's an individual blob for the corresponding loss function
         blobs = []
@@ -342,7 +357,7 @@ class Augmenter:
             scale = scale_list[i]
 
             # what are the objects that have to be predicted by this layer ?
-            assigned_objects=assigned_objects_batch[i]
+            assigned_objects = assigned_objects_batch[i]
 
             # this is a one-hot encoding of the labels of the objects
             labels = np.zeros([batch_size, out_x * out_y, B, C])
@@ -369,7 +384,6 @@ class Augmenter:
             #
             # this blob is also passed to the network, for the loss
             blob = np.zeros((batch_size, out_x * out_y, B, C + 5))
-
 
             # go through the batch dimension and fill the numpy arrays
             for b in range(batch_size):
@@ -452,7 +466,6 @@ class Augmenter:
                 gt_area = np.expand_dims(gt_area, -1)
 
                 gt_areas[b, :] = gt_area
-
 
                 # TODO: the objectness determines wether predictions are considered in the loss function
                 # in yolo, the prediction with the highest IoU will be chosen
