@@ -357,6 +357,7 @@ class Augmenter:
             out_x = out_x_list[i]
             out_y = out_y_list[i]
             scale = scale_list[i]
+            scaled_anchors = anchors * scale
 
             # what are the objects that have to be predicted by this layer ?
             assigned_objects = assigned_objects_batch[i]
@@ -400,6 +401,7 @@ class Augmenter:
 
                     # deconstruct the object
                     label, cx, cy, size_x, size_y = object
+                    label = int(label)
 
                     assert 0 <= cx <= 1, "x should be in [0,1]"
                     assert 0 <= cy <= 1, "y should be in [0,1]"
@@ -450,9 +452,11 @@ class Augmenter:
                         canvas = create_canvas(100, 100, True)
                         draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
                         scaled_anchors = anchors * scale
-                        b = 0
-                        wh = scaled_anchors[b]
+                        box_idx = 0
+                        wh = scaled_anchors[box_idx]
+                        draw_rect(canvas, (x_idx/out_x, y_idx/out_y, *wh), (0,1,0), 1)
                         plot_canvas(canvas)
+                        print("debug mark")
 
             # the huge blob of data
             data = [labels, objectness, target_coords]

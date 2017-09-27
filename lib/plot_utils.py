@@ -33,10 +33,10 @@ def draw_rect(canvas, rect, color=1, thickness=0):
     max_x = int((cx + 0.5 * dx) * size_x)
     max_y = int((cy + 0.5 * dy) * size_y)
 
-    min_x = np.max(min_x, 0)
-    min_y = np.max(min_y, 0)
-    max_x = np.min(size_x - 1, max_x)
-    max_y = np.min(size_y - 1, max_y)
+    min_x = np.maximum(min_x, 0)
+    min_y = np.maximum(min_y, 0)
+    max_x = np.minimum(size_x - 1, max_x)
+    max_y = np.minimum(size_y - 1, max_y)
 
     if thickness > 0:
         canvas[min_x:min_x + thickness, min_y:max_y] = color

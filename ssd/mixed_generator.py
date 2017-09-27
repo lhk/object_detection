@@ -14,6 +14,8 @@ from lib.augmentations import augment
 from keras.applications.imagenet_utils import preprocess_input
 #from lib.augmentations import augment
 
+from lib.plot_utils import *
+
 
 class Augmenter:
 
