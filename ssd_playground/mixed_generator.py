@@ -237,10 +237,10 @@ class Augmenter:
         # assigned_objects[layernumber] = [[objects for this layer in sample 1], [... in sample 2], [sample 3], ...]
         assigned_objects_batch = {layer: [] for layer in range(self.num_outputs)}
 
-        for i in range(batch_size):
+        for batch_index in range(batch_size):
 
             # looking at the objects for sample i
-            objects = object_list[i]
+            objects = object_list[batch_index]
 
             # for this sample, the list of objects assigned to each layer
             # this will be inserted in the assigned_objects_batch
@@ -343,11 +343,36 @@ class Augmenter:
                 best_layer = best_IoU[0]
                 best_box = best_IoU[1]
 
+                vis = False
+                if vis:
+                    canvas = create_canvas(100, 100, True)
+                    draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
+                    scaled_anchors = anchors * scale_list[best_layer]
+                    box_idx = best_box
+                    wh = scaled_anchors[box_idx]
+                    draw_rect(canvas, (cx, cy, *wh), (0, 1, 0), 1)
+                    plot_canvas(canvas)
+                    print("debug mark")
+                    plt.close()
+
                 assigned_objects[best_layer].append((object, best_box))
 
             # write these objects into the outer layer
             for layer in range(self.num_outputs):
                 assigned_objects_batch[layer].append(assigned_objects[layer])
+
+        # count the number of objects assigned to each output layer
+        assignment_count = {}
+        for layer_index in range(self.num_outputs):
+            assigned_objects = assigned_objects_batch[layer_index]
+            total = 0
+            for batch_index in range(batch_size):
+                total += len(assigned_objects[batch_index])
+
+            assignment_count[layer_index]=total
+
+        print(assignment_count)
+
 
         # for every output, there's an individual blob for the corresponding loss function
         blobs = []
@@ -389,11 +414,11 @@ class Augmenter:
             blob = np.zeros((batch_size, out_x * out_y, B, C + 5))
 
             # go through the batch dimension and fill the numpy arrays
-            for b in range(batch_size):
+            for batch_index in range(batch_size):
 
                 # the assigned_objects have to be predicted by this layer,
                 # assigned_objects[b] correspond to the current sample in the batch
-                objects = assigned_objects[b]
+                objects = assigned_objects[batch_index]
 
                 # this is a preparation step which looks at every object and converts the gt data to a more usable format
                 processed_objects = []
@@ -430,14 +455,14 @@ class Augmenter:
                     # maybe we have already processed an object for this cell
                     # we will only consider one such object
                     # overwrite the previous values
-                    labels[b, cell_number, :, :] = 0
-                    labels[b, cell_number, :, label] = 1
+                    labels[batch_index, cell_number, :, :] = 0
+                    labels[batch_index, cell_number, :, label] = 1
 
                     # the index of the best default box has already been determined
                     objectness[b, cell_number, box_index, 0] = 1
 
-                    xy_idx = np.s_[b, cell_number, :, :2]
-                    wh_idx = np.s_[b, cell_number, :, 2:]
+                    xy_idx = np.s_[batch_index, cell_number, :, :2]
+                    wh_idx = np.s_[batch_index, cell_number, :, 2:]
 
                     target_coords[xy_idx] = rel_x, rel_y
 
@@ -447,7 +472,7 @@ class Augmenter:
                     target_coords[wh_idx] = target_coords[wh_idx] / scaled_anchors
                     target_coords[wh_idx] = np.log(target_coords[wh_idx])
 
-                    vis = True
+                    vis = False
                     if vis:
                         canvas = create_canvas(100, 100, True)
                         draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
