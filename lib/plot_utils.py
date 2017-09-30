@@ -51,4 +51,3 @@ def draw_rect(canvas, rect, color=1, thickness=0):
 
 def plot_canvas(canvas):
     plt.imshow(canvas)
-    plt.show()
