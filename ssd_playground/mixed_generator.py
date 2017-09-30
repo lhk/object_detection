@@ -371,7 +371,7 @@ class Augmenter:
 
             assignment_count[layer_index]=total
 
-        print(assignment_count)
+        #print(assignment_count)
 
 
         # for every output, there's an individual blob for the corresponding loss function

@@ -123,8 +123,8 @@ for output_tensor in detection_model.outputs:
     out_x_list.append(out_x)
     out_y_list.append(out_y)
 
-scale_list = [0.55, 0.65, 0.75, 0.85]
 
+scale_list = [0.2, 0.4, 0.75, 1]
 assert len(out_x_list)==len(out_y_list)==len(scale_list), "specific number of outputs"
 num_outputs = len(scale_list)
 
@@ -148,16 +148,15 @@ train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 # from ssd.ssd_generator import generate
-from ssd.mixed_generator import Augmenter
+from ssd_playground.mixed_generator import Augmenter
 
 anchors = np.zeros((B, 2))
-anchors[:] = [[0.8, 0.35], [0.7, 0.45], [0.6, 0.6], [0.45, 0.7], [0.35,0.8]]
-#anchors[:] = [[0.8, 0.45], [0.6, 0.6], [0.45, 0.8]]
+anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 
 batch_size = 12
 
-train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, IoU_threshold=0.3)
-test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, IoU_threshold=0.3)
+train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
+test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
 
 
 # # Loss function
