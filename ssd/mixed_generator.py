@@ -1,6 +1,3 @@
-"""
-This will mix parts of the SSD and YOLO loss formulation
-"""
 
 import numpy as np
 import cv2
