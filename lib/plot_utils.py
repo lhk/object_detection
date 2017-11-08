@@ -67,10 +67,10 @@ def draw_point(canvas, point, color=1, thickness=1):
     if thickness <= 0:
         thickness = 1
 
-    min_x = int((px - thickness) * size_x)
-    min_y = int((py - thickness) * size_y)
-    max_x = int((px + thickness) * size_x)
-    max_y = int((py + thickness) * size_y)
+    min_x = int(px * size_x - thickness)
+    min_y = int(py * size_y - thickness)
+    max_x = int(px * size_x + thickness)
+    max_y = int(py * size_y + thickness)
 
     min_x = np.maximum(min_x, 0)
     min_y = np.maximum(min_y, 0)
