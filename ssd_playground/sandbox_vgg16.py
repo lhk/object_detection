@@ -46,7 +46,7 @@ C = 20  # number of classes
 head_input = Input((None, None, 512))
 
 # block 1
-conv = Conv2D(512, 3,
+conv = Conv2D(1024, 3,
               padding="same",
               use_bias=False,
               kernel_regularizer=keras.regularizers.l2(0.0005),
@@ -56,9 +56,9 @@ conv = LeakyReLU(0.1, name="head_lrelu1")(conv)
 conv = SpatialDropout2D(0.3)(conv)
 
 # block 2
-conv = Conv2D(512, 3,
+conv = Conv2D(1024, 3,
               padding="same",
-              use_bias=True,
+              use_bias=False,
               kernel_regularizer=keras.regularizers.l2(0.0005),
               name="head_conv2")(conv)
 conv = BatchNormalization(name="head_bnorm2")(conv)
@@ -75,7 +75,7 @@ head_output = conv
 head_model = Model(inputs=head_input, outputs=head_output)
 
 
-block4_conv1 = extraction_model.get_layer(name="block4_conv1")
+block4_conv1 = extraction_model.get_layer(name="block4_conv3")
 pool1 = MaxPool2D()(block4_conv1.output)
 head1 = head_model(pool1)
 
@@ -84,7 +84,7 @@ pool1 = MaxPool2D()(block4_conv3.output)
 pool2 = MaxPool2D()(pool1)
 head2 = head_model(pool2)
 
-block5_conv1 = extraction_model.get_layer(name="block5_conv1")
+block5_conv1 = extraction_model.get_layer(name="block5_conv3")
 pool1 = MaxPool2D()(block5_conv1.output)
 pool2 = MaxPool2D()(pool1)
 head3 = head_model(pool2)
@@ -198,7 +198,7 @@ from keras.models import model_from_json
 
 training = True
 if training:
-    detection_model.compile(Adam(lr=0.00004), loss=loss_functions)
+    detection_model.compile(Adam(lr=0.00003), loss=loss_functions)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -231,7 +231,7 @@ if training:
 
     histories = []
     times = []
-    for i in range(1):
+    for i in range(10):
         history = detection_model.fit_generator(train_gen, 6400 // batch_size,
                                                 epochs=5,
                                                 callbacks=[nan_terminator],
