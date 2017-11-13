@@ -282,10 +282,11 @@ class Augmenter:
                 # after having calculated all IoU values, determine the best
                 IoUs = []
                 for layer in range(self.num_outputs):
+                    # the x and y resolution of this output layer
                     out_x = out_x_list[layer]
                     out_y = out_y_list[layer]
 
-                    # convert to network coordinates, [0, out_x] and [0, out_y]
+                    # convert the object coordinates to network coordinates, [0, out_x] and [0, out_y]
                     obj_x = cx * out_x
                     obj_y = cy * out_y
 
@@ -293,13 +294,12 @@ class Augmenter:
                     rel_x = obj_x - np.floor(obj_x)
                     rel_y = obj_y - np.floor(obj_y)
 
-                    # the number of the corresponding cell
+                    # obj_x and obj_y are coordinates in the resolution of the output layer
+                    # we can use them to find the specific cell that contains this object
                     x_idx = np.floor(obj_x)
                     y_idx = np.floor(obj_y)
                     x_idx = int(x_idx)
                     y_idx = int(y_idx)
-                    cell_number = x_idx * out_y + y_idx
-                    cell_number = int(cell_number)
 
                     # get the default boxes for this layer
                     default_upper_left_corners = self.default_upper_left_corner_list[layer]
@@ -355,23 +355,40 @@ class Augmenter:
                     print("debug mark")
                     plt.close()
 
+                # for the object that we've just processed,
+                # we now know the best layer and the best bounding box
                 assigned_objects[best_layer].append((object, best_box))
 
-            # write these objects into the outer layer
+            # the bookkeeping is rather complicated
+            # the list of objects was for one sample
+            # so for one sample, we now have information which layer is responsible for which object
+
+            # overall, we want to have a different structure
+            # we need to map every layer to a list
+            # an entry in the list corresponds to one sample in the batch and is a list again
+            # an entry in this inner list is an object
+
+            # at this point, we have processed all objects in this sample
+            # we sort them by layer and append them to the list
             for layer in range(self.num_outputs):
                 assigned_objects_batch[layer].append(assigned_objects[layer])
 
         # count the number of objects assigned to each output layer
-        assignment_count = {}
-        for layer_index in range(self.num_outputs):
-            assigned_objects = assigned_objects_batch[layer_index]
-            total = 0
-            for batch_index in range(batch_size):
-                total += len(assigned_objects[batch_index])
+        # this is just for debugging purposes
+        # we want the objects to be evenly distributed
+        # if there is a layer, which is never responsible for predicting an object,
+        # then this layer is useless
+        if False:
+            assignment_count = {}
+            for layer_index in range(self.num_outputs):
+                assigned_objects = assigned_objects_batch[layer_index]
+                total = 0
+                for batch_index in range(batch_size):
+                    total += len(assigned_objects[batch_index])
 
-            assignment_count[layer_index]=total
+                assignment_count[layer_index]=total
 
-        #print(assignment_count)
+            #print(assignment_count)
 
 
         # for every output, there's an individual blob for the corresponding loss function
@@ -392,12 +409,6 @@ class Augmenter:
 
             # for every box: is there an object in this box
             objectness = np.zeros([batch_size, out_x * out_y, B, 1])
-
-            # the ground_truth coordinates of the objects in this batch
-            gt_coords = np.zeros([batch_size, out_x * out_y, B, 4])
-            gt_upper_left_corner = np.zeros([batch_size, out_x * out_y, B, 2])
-            gt_lower_right_corner = np.zeros([batch_size, out_x * out_y, B, 2])
-            gt_areas = np.zeros([batch_size, out_x * out_y, B, 1])
 
             # the values to be predicted by the neural network
             # this is the regression target for the coordinate prediction
@@ -423,6 +434,9 @@ class Augmenter:
                 # this is a preparation step which looks at every object and converts the gt data to a more usable format
                 processed_objects = []
                 for obj, box_index in objects:
+
+                    # the processing of the object is exactly the same as above
+                    # TODO: refactor this out
 
                     # deconstruct the object
                     label, cx, cy, size_x, size_y = object
