@@ -156,6 +156,43 @@ class Augmenter:
             # in order to determine which part of the lists belongs to which output layer,
             # the indices at which new layers start are recorded
 
+    def invariant(self, object):
+        """
+        checking whether the coordinates of the object are within [0,1]
+        :param object:
+        :return:
+        """
+        label, cx, cy, size_x, size_y = object
+
+        assert 0 <= cx <= 1, "x should be in [0,1]"
+        assert 0 <= cy <= 1, "y should be in [0,1]"
+
+        assert 0 <= size_x <= 1, "width should be in [0,1]"
+        assert 0 <= size_y <= 1, "height should be in [0,1]"
+
+    def process_object(self, object, out_x, out_y):
+        # deconstruct the object
+        label, cx, cy, size_x, size_y = object
+        label = int(label)
+
+        # convert to network coordinates, [0, out_x] and [0, out_y]
+        obj_x = cx * out_x
+        obj_y = cy * out_y
+
+        # the coordinate should be relative to their cell
+        rel_x = obj_x - np.floor(obj_x)
+        rel_y = obj_y - np.floor(obj_y)
+
+        # the number of the corresponding cell
+        x_idx = np.floor(obj_x)
+        y_idx = np.floor(obj_y)
+        x_idx = int(x_idx)
+        y_idx = int(y_idx)
+        cell_number = x_idx * out_y + y_idx
+        cell_number = int(cell_number)
+
+        return label, x_idx, y_idx, cell_number, rel_x, rel_y
+
     def __iter__(self):
         return self
 
@@ -250,14 +287,12 @@ class Augmenter:
 
             # determine which layer is supposed to store this
             for object in objects:
+
+                # assert that this object has the proper structure
+                self.invariant(object)
+
                 # deconstruct the object
                 label, cx, cy, size_x, size_y = object
-
-                assert 0 <= cx <= 1, "x should be in [0,1]"
-                assert 0 <= cy <= 1, "y should be in [0,1]"
-
-                assert 0 <= size_x <= 1, "width should be in [0,1]"
-                assert 0 <= size_y <= 1, "height should be in [0,1]"
 
                 # now create a numpy array to store the object coordinates
                 gt_coords = np.zeros((4,))
@@ -286,20 +321,7 @@ class Augmenter:
                     out_x = out_x_list[layer]
                     out_y = out_y_list[layer]
 
-                    # convert the object coordinates to network coordinates, [0, out_x] and [0, out_y]
-                    obj_x = cx * out_x
-                    obj_y = cy * out_y
-
-                    # the coordinate should be relative to their cell
-                    rel_x = obj_x - np.floor(obj_x)
-                    rel_y = obj_y - np.floor(obj_y)
-
-                    # obj_x and obj_y are coordinates in the resolution of the output layer
-                    # we can use them to find the specific cell that contains this object
-                    x_idx = np.floor(obj_x)
-                    y_idx = np.floor(obj_y)
-                    x_idx = int(x_idx)
-                    y_idx = int(y_idx)
+                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
 
                     # get the default boxes for this layer
                     default_upper_left_corners = self.default_upper_left_corner_list[layer]
@@ -435,34 +457,11 @@ class Augmenter:
                 processed_objects = []
                 for obj, box_index in objects:
 
-                    # the processing of the object is exactly the same as above
-                    # TODO: refactor this out
+                    # calculate indices of the cell containing the object
+                    # the number of the cell containing the object
+                    # and the coordinates relative to the cell containing this object
+                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
 
-                    # deconstruct the object
-                    label, cx, cy, size_x, size_y = object
-                    label = int(label)
-
-                    assert 0 <= cx <= 1, "x should be in [0,1]"
-                    assert 0 <= cy <= 1, "y should be in [0,1]"
-
-                    assert 0 <= size_x <= 1, "width should be in [0,1]"
-                    assert 0 <= size_y <= 1, "height should be in [0,1]"
-
-                    # convert to network coordinates, [0, out_x] and [0, out_y]
-                    obj_x = cx * out_x
-                    obj_y = cy * out_y
-
-                    # the coordinate should be relative to their cell
-                    rel_x = obj_x - np.floor(obj_x)
-                    rel_y = obj_y - np.floor(obj_y)
-
-                    # the number of the corresponding cell
-                    x_idx = np.floor(obj_x)
-                    y_idx = np.floor(obj_y)
-                    x_idx = int(x_idx)
-                    y_idx = int(y_idx)
-                    cell_number = x_idx * out_y + y_idx
-                    cell_number = int(cell_number)
 
                     # now fill the arrays that will later be combined into the blob
 
