@@ -2,20 +2,13 @@
 This will mix parts of the SSD and YOLO loss formulation
 """
 
-import numpy as np
 import cv2
-
-from lib.parser.parser import parse_image_label_pairs, parse_labels
-
-from lib.preprocessing import preprocess_yolo, preprocess_vgg16
-from lib.utils.object import wh_to_minmax, minmax_to_wh, split, merge
-from lib.augmentations import augment
-
 from keras.applications.imagenet_utils import preprocess_input
 
-import matplotlib.pyplot as plt
-
+from lib.augmentations import augment
+from lib.parser.parser import parse_image_label_pairs, parse_labels
 from lib.plot_utils import *
+from lib.utils.object import wh_to_minmax, minmax_to_wh
 
 
 # from lib.augmentations import augment
@@ -408,10 +401,9 @@ class Augmenter:
                 for batch_index in range(batch_size):
                     total += len(assigned_objects[batch_index])
 
-                assignment_count[layer_index]=total
+                assignment_count[layer_index] = total
 
-            #print(assignment_count)
-
+            # print(assignment_count)
 
         # for every output, there's an individual blob for the corresponding loss function
         blobs = []
@@ -462,7 +454,6 @@ class Augmenter:
                     # and the coordinates relative to the cell containing this object
                     label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
 
-
                     # now fill the arrays that will later be combined into the blob
 
                     # maybe we have already processed an object for this cell
@@ -492,7 +483,7 @@ class Augmenter:
                         scaled_anchors = anchors * scale
                         box_idx = 0
                         wh = scaled_anchors[box_idx]
-                        draw_rect(canvas, (x_idx/out_x, y_idx/out_y, *wh), (0,1,0), 1)
+                        draw_rect(canvas, (x_idx / out_x, y_idx / out_y, *wh), (0, 1, 0), 1)
                         plot_canvas(canvas)
                         print("debug mark")
 
