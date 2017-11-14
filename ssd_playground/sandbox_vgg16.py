@@ -99,7 +99,8 @@ head4 = head_model(pool3)
 #head_8_1 = head_model(block8_pool1)
 
 
-detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2, head3, head4])
+#detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2, head3, head4])
+detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2, head3])
 detection_model.summary()
 # ### parameters of the model
 #
@@ -124,7 +125,8 @@ for output_tensor in detection_model.outputs:
     out_y_list.append(out_y)
 
 
-scale_list = [0.2, 0.4, 0.75, 1]
+#scale_list = [0.2, 0.4, 0.75, 1]
+scale_list = [0.2, 0.4, 0.75]
 assert len(out_x_list)==len(out_y_list)==len(scale_list), "specific number of outputs"
 num_outputs = len(scale_list)
 
@@ -193,7 +195,7 @@ for i in range(num_outputs):
 from keras.optimizers import Adam, SGD
 
 from keras.models import model_from_json
-
+from keras.callbacks import  ModelCheckpoint
 # check this: are the parameters correct ?
 
 training = True
@@ -223,51 +225,23 @@ if training:
                     self.model.stop_training = True
 
 
+    # callbacks for the model
     nan_terminator = TerminateOnNaN()
+    checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{val_loss:.2f}.hdf5",
+                                          monitor='val_loss', verbose=0, save_best_only=False,
+                                          save_weights_only=True, mode='auto', period=1)
 
-    # train in small steps and append histories
-    # if training is interrupted, the history array still contains usable data
-    import time
+    history = detection_model.fit_generator(train_gen, 6400 // batch_size,
+                                            epochs=50,
+                                            callbacks=[nan_terminator],
+                                            validation_data=test_gen,
+                                            validation_steps=1600 // batch_size,
+                                            # use_multiprocessing=False)
+                                            workers=6,
+                                            max_queue_size=30)
 
-    histories = []
-    times = []
-    for i in range(10):
-        history = detection_model.fit_generator(train_gen, 6400 // batch_size,
-                                                epochs=5,
-                                                callbacks=[nan_terminator],
-                                                validation_data=test_gen,
-                                                validation_steps=1600 // batch_size,
-                                                # use_multiprocessing=False)
-                                                workers=6,
-                                                max_queue_size=30)
-        histories.append(history)
-        times.append(time.time())
-
-    # ### Plot the test / val loss
-    # As you can see, the model reaches about 1000 for validation loss.
-    # Then it overfits.
-    #
-    # This number can't be interpreted correctly. It depends on the size of the network and the batch.
-    # A solution would be to take the mean in the loss instead of summing all components.
-    # But that would mess with the learning rate.
-    #
-    # I'm evaluating the pretrained model against the validation generator.
-    # Surprisingly, the new model reaches better scores.
-    # A possible explanation: The original yolo doesn't use rotations as augmentations. The validation generator uses rotations.
-    # Or the number of samples from the validation set was simply too small
-
-
-
-
-    losses = []
-    val_losses = []
-
-    for item in histories:
-        losses.extend(item.history["loss"])
-        val_losses.extend(item.history["val_loss"])
-
-    plt.plot(losses)
-    plt.plot(val_losses)
+    plt.plot(history["loss"])
+    plt.plot(history["val_loss"])
     plt.legend(["train", "val"])
     plt.title("loss")
     plt.show()
