@@ -231,11 +231,12 @@ if training:
                                           monitor='val_loss', verbose=0, save_best_only=False,
                                           save_weights_only=True, mode='auto', period=1)
 
-    history = detection_model.fit_generator(train_gen, 6400 // batch_size,
-                                            epochs=50,
-                                            callbacks=[nan_terminator],
+    history = detection_model.fit_generator(generator = train_gen,
+                                            steps_per_epoch = 400,
+                                            epochs=100,
+                                            callbacks=[nan_terminator, checkpoint_callback],
                                             validation_data=test_gen,
-                                            validation_steps=1600 // batch_size,
+                                            validation_steps=20,
                                             # use_multiprocessing=False)
                                             workers=6,
                                             max_queue_size=30)
