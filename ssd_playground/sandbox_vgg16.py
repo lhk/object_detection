@@ -198,7 +198,7 @@ from keras.models import model_from_json
 from keras.callbacks import  ModelCheckpoint
 # check this: are the parameters correct ?
 
-training = True
+training = False
 if training:
     detection_model.compile(Adam(lr=0.00003), loss=loss_functions)
 
@@ -229,20 +229,21 @@ if training:
     nan_terminator = TerminateOnNaN()
     checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{val_loss:.2f}.hdf5",
                                           monitor='val_loss', verbose=0, save_best_only=False,
-                                          save_weights_only=True, mode='auto', period=1)
+                                          save_weights_only=True, mode='auto', period=4)
 
-    history = detection_model.fit_generator(generator = train_gen,
-                                            steps_per_epoch = 400,
-                                            epochs=100,
+    training_results = detection_model.fit_generator(generator = train_gen,
+                                            steps_per_epoch = 100,
+                                            epochs=400,
                                             callbacks=[nan_terminator, checkpoint_callback],
                                             validation_data=test_gen,
-                                            validation_steps=20,
+                                            validation_steps=40,
                                             # use_multiprocessing=False)
                                             workers=6,
                                             max_queue_size=30)
 
-    plt.plot(history["loss"])
-    plt.plot(history["val_loss"])
+
+    plt.plot(training_results.history["loss"])
+    plt.plot(training_results.history["val_loss"])
     plt.legend(["train", "val"])
     plt.title("loss")
     plt.show()
@@ -255,7 +256,7 @@ else:
     # with open("models/detection_model.json") as json_file:
     #    json_string = json_file.read()
     #    detection_model = model_from_json(json_string)
-    detection_model.load_weights("models/vgg16_1.h5")
+    detection_model.load_weights("models/checkpoints/weights.131-106.32.hdf5")
 
 # # Evaluation
 
@@ -332,7 +333,10 @@ for i in tqdm(range(50)):
 
         f, axes = plt.subplots(1, 4, figsize=(10, 10))
 
-        axes[0].imshow(f_objectness[0, :, :, 0])
+        contains_object = f_objectness[0].max()
+        print("objectness:" + str(contains_object))
+
+        axes[0].imshow(f_objectness[0].sum(axis=-1))
         axes[0].set_title("given objectness")
 
         axes[1].imshow(max_probs)
@@ -344,3 +348,5 @@ for i in tqdm(range(50)):
         axes[3].imshow(img)
         axes[3].set_title("original image")
         plt.show()
+
+        debug_mark = 0
