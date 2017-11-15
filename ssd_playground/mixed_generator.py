@@ -445,14 +445,12 @@ class Augmenter:
                 # assigned_objects[b] correspond to the current sample in the batch
                 objects = assigned_objects[batch_index]
 
-                # this is a preparation step which looks at every object and converts the gt data to a more usable format
-                processed_objects = []
                 for obj, box_index in objects:
 
                     # calculate indices of the cell containing the object
                     # the number of the cell containing the object
                     # and the coordinates relative to the cell containing this object
-                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
+                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(obj, out_x, out_y)
 
                     # now fill the arrays that will later be combined into the blob
 
