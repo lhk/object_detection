@@ -463,7 +463,7 @@ class Augmenter:
                     labels[batch_index, cell_number, :, label] = 1
 
                     # the index of the best default box has already been determined
-                    objectness[b, cell_number, box_index, 0] = 1
+                    objectness[batch_index, cell_number, box_index, 0] = 1
 
                     xy_idx = np.s_[batch_index, cell_number, :, :2]
                     wh_idx = np.s_[batch_index, cell_number, :, 2:]
