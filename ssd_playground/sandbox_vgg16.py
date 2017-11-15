@@ -290,63 +290,77 @@ for i in tqdm(range(50)):
     # list of all detections
     detections=[]
 
-    # process every output individually
-    for i in range(num_outputs):
+    for batch_index in range(batch_size):
 
-        prediction = predictions[i]
-        out_x = out_x_list[i]
-        out_y = out_y_list[i]
-        scale = scale_list[i]
+        # process every output individually
+        for i in range(num_outputs):
 
-        blob = blobs[i]
+            prediction = predictions[i]
+            out_x = out_x_list[i]
+            out_y = out_y_list[i]
+            scale = scale_list[i]
 
-        # we only look at the first prediction
-        prediction = prediction.reshape((-1, out_x, out_y, B, C + 5))
-        prediction = prediction[0]
-        img = imgs[0]
+            blob = blobs[i]
 
-        # ### Comparing given objectness with confidence of the network
+            # look at the prediction corresponding to this batch
+            prediction = prediction.reshape((-1, out_x, out_y, B, C + 5))
+            prediction = prediction[batch_index]
+            img = imgs[batch_index]
 
-        # extract the given objectness for this image
-        loss_dict = extract_from_blob(blob, out_x, out_y, B, C)
+            # ### Comparing given objectness with confidence of the network
 
-        # read the given objectness out of the loss dictionary
-        f_objectness = loss_dict["f_objectness"].reshape((-1, out_x, out_y, B))
+            # extract the given objectness for this image
+            loss_dict = extract_from_blob(blob, out_x, out_y, B, C)
 
-        classes = prediction[:, :, :, 5:]
-        classes = softmax(classes)
-        max_classes = classes.max(axis=-1)
+            # read the given data out of the blob
+            # I add an f_ to everything that was fed to the network
+            f_objectness = loss_dict["f_objectness"].reshape((-1, out_x, out_y, B))
+            f_labels = loss_dict["f_labels"].reshape((-1, out_x, out_y, B, C))
 
-        objectness = np_sigmoid(prediction[:, :, :, 4])
+            classes = prediction[:, :, :, 5:]
+            classes = softmax(classes)
+            max_classes = classes.max(axis=-1)
 
-        probs = max_classes * objectness
+            objectness = np_sigmoid(prediction[:, :, :, 4])
 
-        # probs is along the B dimension
-        # for every cell in the output activation map, get the best bounding box score
-        max_probs = probs.max(axis=-1)
+            probs = max_classes * objectness
 
-        threshold = 0.3
-        thresholded = max_probs > threshold
+            # probs is along the B dimension
+            # for every cell in the output activation map, get the best bounding box score
+            max_probs = probs.max(axis=-1)
 
-        # which coordinates are bigger than the threshold ?
-        batch_row_col = np.where(thresholded)
+            threshold = 0.3
+            thresholded = max_probs > threshold
 
-        f, axes = plt.subplots(1, 4, figsize=(10, 10))
+            # which coordinates are bigger than the threshold ?
+            batch_row_col = np.where(thresholded)
 
-        contains_object = f_objectness[0].max()
-        print("objectness:" + str(contains_object))
+            f, axes = plt.subplots(1, 4, figsize=(10, 10))
 
-        axes[0].imshow(f_objectness[0].sum(axis=-1))
-        axes[0].set_title("given objectness")
+            contains_object = f_objectness[batch_index].max()
+            print("objectness:" + str(contains_object))
 
-        axes[1].imshow(max_probs)
-        axes[1].set_title("confidence")
+            # let's look at the objects we are given here
+            from lib.name_table import names
+            object_indices = np.where(f_objectness[batch_index]==1)
+            for x,y,b in zip(object_indices[0], object_indices[1], object_indices[2]):
+                # label is encoded as a one-hot vector at this position
+                label = np.argmax(f_labels[batch_index, x, y, b])
+                label = int(label)
+                name = names[label]
+                print(name)
 
-        axes[2].imshow(thresholded)
-        axes[2].set_title("thresholded")
+            axes[0].imshow(f_objectness[batch_index].sum(axis=-1))
+            axes[0].set_title("given objectness")
 
-        axes[3].imshow(img)
-        axes[3].set_title("original image")
-        plt.show()
+            axes[1].imshow(max_probs)
+            axes[1].set_title("confidence")
 
-        debug_mark = 0
+            axes[2].imshow(thresholded)
+            axes[2].set_title("thresholded")
+
+            axes[3].imshow(img)
+            axes[3].set_title("original image")
+            plt.show()
+
+            debug_mark = 0
