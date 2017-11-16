@@ -393,7 +393,8 @@ class Augmenter:
         # we want the objects to be evenly distributed
         # if there is a layer, which is never responsible for predicting an object,
         # then this layer is useless
-        if False:
+        debug_output=False
+        if debug_output:
             assignment_count = {}
             for layer_index in range(self.num_outputs):
                 assigned_objects = assigned_objects_batch[layer_index]
@@ -403,7 +404,7 @@ class Augmenter:
 
                 assignment_count[layer_index] = total
 
-            # print(assignment_count)
+            print(assignment_count)
 
         # for every output, there's an individual blob for the corresponding loss function
         blobs = []

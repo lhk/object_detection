@@ -75,32 +75,21 @@ head_output = conv
 head_model = Model(inputs=head_input, outputs=head_output)
 
 
-block4_conv1 = extraction_model.get_layer(name="block4_conv3")
-pool1 = MaxPool2D()(block4_conv1.output)
-head1 = head_model(pool1)
-
-block4_conv3 = extraction_model.get_layer(name="block4_conv3")
-pool1 = MaxPool2D()(block4_conv3.output)
-pool2 = MaxPool2D()(pool1)
-head2 = head_model(pool2)
-
 block5_conv1 = extraction_model.get_layer(name="block5_conv3")
 pool1 = MaxPool2D()(block5_conv1.output)
-pool2 = MaxPool2D()(pool1)
-head3 = head_model(pool2)
+head1 = head_model(pool1)
 
 block5_conv3 = extraction_model.get_layer(name="block5_conv3")
 pool1 = MaxPool2D()(block5_conv3.output)
 pool2 = MaxPool2D()(pool1)
-pool3 = MaxPool2D()(pool2)
-head4 = head_model(pool3)
+head2 = head_model(pool2)
 
 #block8_pool1 = MaxPool2D()(block7_pool1)
 #head_8_1 = head_model(block8_pool1)
 
 
 #detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2, head3, head4])
-detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2, head3])
+detection_model = Model(inputs=extraction_model.input, outputs=[head1, head2])
 detection_model.summary()
 # ### parameters of the model
 #
@@ -126,14 +115,14 @@ for output_tensor in detection_model.outputs:
 
 
 #scale_list = [0.2, 0.4, 0.75, 1]
-scale_list = [0.2, 0.4, 0.75]
+scale_list = [0.5, 0.7]
 assert len(out_x_list)==len(out_y_list)==len(scale_list), "specific number of outputs"
 num_outputs = len(scale_list)
 
 lambda_coords = 10
 lambda_class = 2
 lambda_obj = 5
-lambda_noobj = 0.5
+lambda_noobj = 0.05
 
 # ### Set up the training data
 # Follow the guide on the darknet side to set up VOC:
@@ -198,7 +187,7 @@ from keras.models import model_from_json
 from keras.callbacks import  ModelCheckpoint
 # check this: are the parameters correct ?
 
-training = False
+training = True
 if training:
     detection_model.compile(Adam(lr=0.00003), loss=loss_functions)
 
@@ -272,6 +261,7 @@ from lib.utils.activations import softmax, np_sigmoid
 # del extract_from_blob
 # del get_probabilities
 from lib.utils.ssd_prediction import extract_from_blob, get_probabilities
+from lib.name_table import names
 
 np.random.seed(0)
 
@@ -341,7 +331,6 @@ for i in tqdm(range(50)):
             print("objectness:" + str(contains_object))
 
             # let's look at the objects we are given here
-            from lib.name_table import names
             object_indices = np.where(f_objectness[batch_index]==1)
             for x,y,b in zip(object_indices[0], object_indices[1], object_indices[2]):
                 # label is encoded as a one-hot vector at this position
@@ -349,6 +338,11 @@ for i in tqdm(range(50)):
                 label = int(label)
                 name = names[label]
                 print(name)
+
+                class_vector = classes[x,y,b]
+                class_idx = np.argmax(class_vector)
+
+                print("highest prediction is: " + str(names[class_idx]))
 
             axes[0].imshow(f_objectness[batch_index].sum(axis=-1))
             axes[0].set_title("given objectness")

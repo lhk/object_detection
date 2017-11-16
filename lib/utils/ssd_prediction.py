@@ -40,6 +40,7 @@ def extract_from_blob(blob,
     length = 1
     f_objectness = (blob[:, :, :, pointer: pointer + length]).reshape((-1, out_x * out_y, B, length))
     pointer += length
+
     length = 4
     f_boxes = (blob[:, :, :, pointer: pointer + length]).reshape((-1, out_x * out_y, B, length))
     pointer += length
