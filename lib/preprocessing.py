@@ -8,6 +8,7 @@ import numpy as np
 def preprocess_vgg16(img):
     # vgg16 expects image in BGR format
     # and a shift is applied
+    # this is the same as keras.applications.imagenet_utils.preprocess_input
     img = img.astype(np.float32)
     offset = [103.939, 116.779,123.68]
     img -= offset
@@ -34,4 +35,8 @@ def preprocess_yolo(img):
     img = img.astype(np.float32)
     img = img[:,:,::-1]
     img /= 255
+    return img
+
+def postprocess_yolo(img):
+    # the input for yolo is already in the format expected by pyplot, nothing to do here
     return img
