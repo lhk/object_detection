@@ -3,7 +3,6 @@ This will mix parts of the SSD and YOLO loss formulation
 """
 
 import cv2
-from keras.applications.imagenet_utils import preprocess_input
 
 from lib.augmentations import augment
 from lib.parser.parser import parse_image_label_pairs, parse_labels
@@ -20,6 +19,7 @@ class Augmenter:
                  in_x, in_y, out_x_list, out_y_list,
                  scale_list, anchors, B, C,
                  batch_size,
+                 preprocess,
                  IoU_threshold=0.5, config=None):
 
         assert len(out_x_list) == len(out_y_list) == len(scale_list), "the lists need to have the same length"
@@ -45,6 +45,11 @@ class Augmenter:
 
         # threshold to attribute object to box
         self.IoU_threshold = IoU_threshold
+
+        # we use an pretrained network for feature extraction
+        # each model will expect a different input format
+        # this function is used to transform the images in the correct input format
+        self.preprocess = preprocess
 
         # config for the augmentation
         if not config:
@@ -149,7 +154,7 @@ class Augmenter:
             # in order to determine which part of the lists belongs to which output layer,
             # the indices at which new layers start are recorded
 
-    def invariant(self, object):
+    def invariant_object(self, object):
         """
         checking whether the coordinates of the object are within [0,1]
         :param object:
@@ -282,7 +287,7 @@ class Augmenter:
             for object in objects:
 
                 # assert that this object has the proper structure
-                self.invariant(object)
+                self.invariant_object(object)
 
                 # deconstruct the object
                 label, cx, cy, size_x, size_y = object
@@ -393,7 +398,7 @@ class Augmenter:
         # we want the objects to be evenly distributed
         # if there is a layer, which is never responsible for predicting an object,
         # then this layer is useless
-        debug_output=False
+        debug_output = False
         if debug_output:
             assignment_count = {}
             for layer_index in range(self.num_outputs):
@@ -499,5 +504,5 @@ class Augmenter:
 
             blobs.append(blob)
 
-        batch = preprocess_input(batch)
+        batch = self.preprocess(batch)
         return batch, blobs
