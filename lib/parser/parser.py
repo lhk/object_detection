@@ -73,6 +73,9 @@ def parse_labels(label_filename):
             # obj[0] is the label, that stays the same
             # but x and y, as well as w and h are swapped
             obj = [obj[0], obj[2], obj[1], obj[4], obj[3]]
+
+            # we also convert the label to an integer
+            obj[0] = int(obj[0])
             
             # now obj[1] is x and obj[3] is size in x dimension
             # now obj[2] is y and obj[4] is size in y dimension

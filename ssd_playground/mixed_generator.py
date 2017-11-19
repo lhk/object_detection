@@ -162,6 +162,8 @@ class Augmenter:
         """
         label, cx, cy, size_x, size_y = object
 
+        assert type(label)==int, "label must be an integer"
+
         assert 0 <= cx <= 1, "x should be in [0,1]"
         assert 0 <= cy <= 1, "y should be in [0,1]"
 
@@ -257,9 +259,7 @@ class Augmenter:
 
         batch_size = self.batch_size
 
-        # network input and output size
-        in_x = self.in_x
-        in_y = self.in_y
+        # network output size
         out_x_list = self.out_x_list
         out_y_list = self.out_y_list
 
@@ -271,39 +271,37 @@ class Augmenter:
         B = self.B
         C = self.C
 
-        # threshold to attribute object to box
-        IoU_threshold = self.IoU_threshold
-
-        batch, object_list = self.get_augmented_batch()
+        batch, batch_object_list = self.get_augmented_batch()
 
         # the batch is the input of the network, so the data that is fed for the forward pass is ready now
         # but we still need the data for the loss formulation
         # there is a loss function which expects a blob of data
-        #
 
-        # now we have a list of lists for the objects
-        # for every sample in the batch, there is a list of objects contained in this sample
-        # for every object, we need to know which layer is supposed to predict it
-        # go through the list again and determine the best overlaps
+        # in the following, we will create many different lists of objects
+        # the naming scheme tries to organize this
+        # sample_objects contains all objects in the sample
+        # batch_objects contains all sample_objects lists in the batch
 
-        # the assigned objects store: for every layer for every sample the list of objects
-        # the mapping is: index of output layer -> nested list of objects (for every sample there's a list)
-        # assigned_objects[layernumber] = [[objects for this layer in sample 1], [... in sample 2], [sample 3], ...]
-        assigned_objects_batch = {layer: [] for layer in range(self.num_outputs)}
+        # then we also need to assign objects to layers
+        # layer_objects contains all objects in a layer
+        # sample_layer_objects contains all layer_objects lists for one sample
+        # batch_layer_objects contains all sample_layer_objects lists for one batch
 
-        for batch_index in range(batch_size):
+        # examples:
+        # sample_layer_objects[l] is a layer_objects list
+        # sample_layer_objects[l][i] is a an object
+        # batch_layer_objects[s][l][i] is an object
 
-            # looking at the objects for sample i
-            objects = object_list[batch_index]
+        batch_layer_objects=[]
 
-            # for this sample, the list of objects assigned to each layer
-            # this will be inserted in the assigned_objects_batch
-            assigned_objects = {}
-            for layer in range(self.num_outputs):
-                assigned_objects[layer] = []
+        # for every sample in the batch, we need the corresponding objects
+        for sample_object_list in batch_object_list:
 
-            # determine which layer is supposed to store this
-            for object in objects:
+            # for every object, check which layers it is assigned to
+            # the assignment looks at overlap with default boxes
+            sample_layer_objects = [ [] for layer in range(self.num_outputs)]
+
+            for object in sample_object_list:
 
                 # assert that this object has the proper structure
                 self.invariant_object(object)
@@ -329,21 +327,27 @@ class Augmenter:
                 # calculate area
                 gt_area = gt_width_height[0] * gt_width_height[1]
 
-                # go through all layers, determine which cell holds this object
-                # calculate IoU and store it
-                # after having calculated all IoU values, determine the best
                 IoUs = []
-                for layer in range(self.num_outputs):
-                    # the x and y resolution of this output layer
-                    out_x = out_x_list[layer]
-                    out_y = out_y_list[layer]
+                best_boxes = []
+                cell_coords = []
+                cell_offsets = []
 
-                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
+                # go through all layers
+                # determine which cell contains this object
+                # calculate overlaps and best default box
+                for layer_index in range(self.num_outputs):
+
+                    # the x and y resolution of this output layer
+                    out_x = out_x_list[layer_index]
+                    out_y = out_y_list[layer_index]
+
+                    # calculate coordinates of cell and offset to cell
+                    _, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(object, out_x, out_y)
 
                     # get the default boxes for this layer
-                    default_upper_left_corners = self.default_upper_left_corner_list[layer]
-                    default_lower_right_corners = self.default_lower_right_corner_list[layer]
-                    default_areas = self.default_areas_list[layer]
+                    default_upper_left_corners = self.default_upper_left_corner_list[layer_index]
+                    default_lower_right_corners = self.default_lower_right_corner_list[layer_index]
+                    default_areas = self.default_areas_list[layer_index]
 
                     # and select the entries for this cell
                     default_upper_left_corner = default_upper_left_corners[x_idx, y_idx]
@@ -367,81 +371,81 @@ class Augmenter:
                     eps = 0.01
                     IoU = intersection / (eps + union)
 
-                    IoUs.append(IoU)
+                    # calculate best IoU and correpsonding default box
+                    best_box = IoU.argmax()
+                    best_IoU = IoU[best_box]
 
-                # reshape IoUs to expose dimension for the layer
-                IoUs = [IoU.reshape((1, B)) for IoU in IoUs]
+                    IoUs.append(best_IoU)
+                    best_boxes.append(best_box)
+                    cell_coords.append((x_idx, y_idx, cell_number))
+                    cell_offsets.append((rel_x, rel_y))
 
-                # convert this to a numpy array
-                IoU_concatenated = np.concatenate(IoUs, axis=0)
+                # assign this object to layers
+                best_IoU = max(IoUs)
+                for layer_index in range(self.num_outputs):
+                    IoU = IoUs[layer_index]
+                    best_box = best_boxes[layer_index]
+                    x_idx, y_idx, cell_number = cell_coords[layer_index]
+                    rel_x, rel_y = cell_offsets[layer_index]
 
-                # determine the best fitting default box
-                best_IoU = IoU_concatenated.argmax()
-                best_IoU = np.unravel_index(best_IoU, IoU_concatenated.shape)
+                    # we assign an object to a layer
+                    # if the IoU is above the threshold
+                    # or if it is the best IoU
+                    if IoU > self.IoU_threshold or IoU>=best_IoU:
+                        sample_layer_objects[layer_index].append((label, best_box,
+                                                                  x_idx, y_idx, cell_number,
+                                                                  rel_x, rel_y,
+                                                                  size_x, size_y))
 
-                best_layer = best_IoU[0]
-                best_box = best_IoU[1]
+                        vis = False
+                        if vis:
+                            canvas = create_canvas(100, 100, True)
+                            draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
+                            scaled_anchors = anchors * scale_list[layer_index]
+                            wh = scaled_anchors[best_box]
+                            draw_rect(canvas, (cx, cy, *wh), (0, 1, 0), 1)
+                            plot_canvas(canvas)
+                            print("debug mark")
+                            plt.close()
 
-                vis = False
-                if vis:
-                    canvas = create_canvas(100, 100, True)
-                    draw_rect(canvas, (cx, cy, size_x, size_y), (1, 0, 0), 1)
-                    scaled_anchors = anchors * scale_list[best_layer]
-                    box_idx = best_box
-                    wh = scaled_anchors[box_idx]
-                    draw_rect(canvas, (cx, cy, *wh), (0, 1, 0), 1)
-                    plot_canvas(canvas)
-                    print("debug mark")
-                    plt.close()
-
-                # for the object that we've just processed,
-                # we now know the best layer and the best bounding box
-                assigned_objects[best_layer].append((object, best_box))
-
-            # the bookkeeping is rather complicated
-            # the list of objects was for one sample
-            # so for one sample, we now have information which layer is responsible for which object
-
-            # overall, we want to have a different structure
-            # we need to map every layer to a list
-            # an entry in the list corresponds to one sample in the batch and is a list again
-            # an entry in this inner list is an object
-
-            # at this point, we have processed all objects in this sample
-            # we sort them by layer and append them to the list
-            for layer in range(self.num_outputs):
-                assigned_objects_batch[layer].append(assigned_objects[layer])
+            batch_layer_objects.append(sample_layer_objects)
 
         # count the number of objects assigned to each output layer
         # this is just for debugging purposes
         # we want the objects to be evenly distributed
         # if there is a layer, which is never responsible for predicting an object,
         # then this layer is useless
-        debug_output = False
+        debug_output = True
         if debug_output:
-            assignment_count = {}
-            for layer_index in range(self.num_outputs):
-                assigned_objects = assigned_objects_batch[layer_index]
-                total = 0
-                for batch_index in range(batch_size):
-                    total += len(assigned_objects[batch_index])
-
-                assignment_count[layer_index] = total
+            assignment_count = [0 for layer_index in range(self.num_outputs)]
+            for batch_index in range(self.batch_size):
+                for layer_index in range(self.num_outputs):
+                    assignment_count[layer_index] += len(batch_layer_objects[batch_index][layer_index])
 
             print(assignment_count)
+
+        # every blob corresponds to one output layer and contains all objects in the batch
+        # so we need to reorder our list
+        # the first dimension needs to iterate along the layers,
+        # the second along the batch
+        layer_batch_objects = [[] for layer in range(self.num_outputs)]
+
+        for sample_layer_objects in batch_layer_objects:
+            for layer_index, layer_objects in enumerate(sample_layer_objects):
+                layer_batch_objects[layer_index].append(layer_objects)
+
 
         # for every output, there's an individual blob for the corresponding loss function
         blobs = []
 
         # go through all the outputs and fill their blobs
-        for i in range(self.num_outputs):
-            out_x = out_x_list[i]
-            out_y = out_y_list[i]
-            scale = scale_list[i]
+        for layer_index in range(self.num_outputs):
+            out_x = out_x_list[layer_index]
+            out_y = out_y_list[layer_index]
+            scale = scale_list[layer_index]
             scaled_anchors = anchors * scale
 
-            # what are the objects that have to be predicted by this layer ?
-            assigned_objects = assigned_objects_batch[i]
+            batch_objects = layer_batch_objects[layer_index]
 
             # this is a one-hot encoding of the labels of the objects
             labels = np.zeros([batch_size, out_x * out_y, B, C])
@@ -468,16 +472,12 @@ class Augmenter:
 
                 # the assigned_objects have to be predicted by this layer,
                 # assigned_objects[b] correspond to the current sample in the batch
-                objects = assigned_objects[batch_index]
+                objects = batch_objects[batch_index]
 
-                for obj, box_index in objects:
+                for obj in objects:
 
-                    # calculate indices of the cell containing the object
-                    # the number of the cell containing the object
-                    # and the coordinates relative to the cell containing this object
-                    label, x_idx, y_idx, cell_number, rel_x, rel_y = self.process_object(obj, out_x, out_y)
-
-                    # now fill the arrays that will later be combined into the blob
+                    # deconstruct the object
+                    (label, best_box, x_idx, y_idx, cell_number, rel_x, rel_y, size_x, size_y) = obj
 
                     # maybe we have already processed an object for this cell
                     # we will only consider one such object
@@ -486,7 +486,7 @@ class Augmenter:
                     labels[batch_index, cell_number, :, label] = 1
 
                     # the index of the best default box has already been determined
-                    objectness[batch_index, cell_number, box_index, 0] = 1
+                    objectness[batch_index, cell_number, best_box, 0] = 1
 
                     xy_idx = np.s_[batch_index, cell_number, :, :2]
                     wh_idx = np.s_[batch_index, cell_number, :, 2:]

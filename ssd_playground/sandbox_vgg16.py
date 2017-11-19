@@ -140,14 +140,15 @@ test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 # from ssd.ssd_generator import generate
 from ssd_playground.mixed_generator import Augmenter
+from lib.preprocessing import preprocess_vgg16, postprocess_vgg16
 
 anchors = np.zeros((B, 2))
 anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 
 batch_size = 12
 
-train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
-test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size)
+train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
+test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
 
 
 # # Loss function
@@ -187,7 +188,7 @@ from keras.models import model_from_json
 from keras.callbacks import  ModelCheckpoint
 # check this: are the parameters correct ?
 
-training = True
+training = False
 if training:
     detection_model.compile(Adam(lr=0.00003), loss=loss_functions)
 
@@ -216,16 +217,16 @@ if training:
 
     # callbacks for the model
     nan_terminator = TerminateOnNaN()
-    checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{val_loss:.2f}.hdf5",
+    checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5",
                                           monitor='val_loss', verbose=0, save_best_only=False,
-                                          save_weights_only=True, mode='auto', period=4)
+                                          save_weights_only=True, mode='auto', period=1)
 
     training_results = detection_model.fit_generator(generator = train_gen,
-                                            steps_per_epoch = 100,
-                                            epochs=400,
+                                            steps_per_epoch = 30,
+                                            epochs=100,
                                             callbacks=[nan_terminator, checkpoint_callback],
                                             validation_data=test_gen,
-                                            validation_steps=40,
+                                            validation_steps=30,
                                             # use_multiprocessing=False)
                                             workers=6,
                                             max_queue_size=30)
@@ -245,7 +246,7 @@ else:
     # with open("models/detection_model.json") as json_file:
     #    json_string = json_file.read()
     #    detection_model = model_from_json(json_string)
-    detection_model.load_weights("models/checkpoints/weights.131-106.32.hdf5")
+    detection_model.load_weights("models/checkpoints/weights.73-501.93.hdf5")
 
 # # Evaluation
 
@@ -272,6 +273,8 @@ for i in tqdm(range(50)):
     # get some sample data
     batch = next(test_gen)
     imgs = batch[0]
+    imgs = postprocess_vgg16(imgs)
+
     blobs = batch[1]
 
     # feed the data to the model
