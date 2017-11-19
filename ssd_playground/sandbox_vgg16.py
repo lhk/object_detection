@@ -145,7 +145,7 @@ from lib.preprocessing import preprocess_vgg16, postprocess_vgg16
 anchors = np.zeros((B, 2))
 anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 
-batch_size = 12
+batch_size = 16
 
 train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
 test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
@@ -188,9 +188,9 @@ from keras.models import model_from_json
 from keras.callbacks import  ModelCheckpoint
 # check this: are the parameters correct ?
 
-training = False
+training = True
 if training:
-    detection_model.compile(Adam(lr=0.00003), loss=loss_functions)
+    detection_model.compile(Adam(lr=0.000001), loss=loss_functions)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -219,17 +219,17 @@ if training:
     nan_terminator = TerminateOnNaN()
     checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5",
                                           monitor='val_loss', verbose=0, save_best_only=False,
-                                          save_weights_only=True, mode='auto', period=1)
+                                          save_weights_only=True, mode='auto', period=5)
 
     training_results = detection_model.fit_generator(generator = train_gen,
                                             steps_per_epoch = 30,
-                                            epochs=100,
+                                            epochs=400,
                                             callbacks=[nan_terminator, checkpoint_callback],
                                             validation_data=test_gen,
                                             validation_steps=30,
                                             # use_multiprocessing=False)
                                             workers=6,
-                                            max_queue_size=30)
+                                            max_queue_size=3*batch_size)
 
 
     plt.plot(training_results.history["loss"])

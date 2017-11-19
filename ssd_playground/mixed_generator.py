@@ -20,7 +20,7 @@ class Augmenter:
                  scale_list, anchors, B, C,
                  batch_size,
                  preprocess,
-                 IoU_threshold=0.5, config=None):
+                 IoU_threshold=0.25, config=None):
 
         assert len(out_x_list) == len(out_y_list) == len(scale_list), "the lists need to have the same length"
         self.num_outputs = len(out_x_list)
@@ -415,7 +415,7 @@ class Augmenter:
         # we want the objects to be evenly distributed
         # if there is a layer, which is never responsible for predicting an object,
         # then this layer is useless
-        debug_output = True
+        debug_output = False
         if debug_output:
             assignment_count = [0 for layer_index in range(self.num_outputs)]
             for batch_index in range(self.batch_size):
