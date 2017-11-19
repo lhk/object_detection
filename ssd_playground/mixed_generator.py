@@ -194,6 +194,61 @@ class Augmenter:
     def __iter__(self):
         return self
 
+    def get_augmented_batch(self):
+        batch_size = self.batch_size
+
+        # network input and output size
+        in_x = self.in_x
+        in_y = self.in_y
+
+        config = self.config
+
+        # get a list of pairs of (image_path, label_path)
+        image_label_pairs = self.image_label_pairs
+
+        # this is the batch fed to the network
+        # only this is actual input to the forward pass
+        # the other numpy arrays are for the calculation of the loss
+        batch = np.zeros((batch_size, in_x, in_y, 3))
+
+        # first we load all the images for this batch
+        # the objects within the image are just stored in a list
+        # this is a list of lists: one list for each image
+        object_list = []
+
+        # augmentation of images and objects
+        # filling the batch with images
+        # objects still need to be processed
+        for batch_index in range(batch_size):
+
+            idx = np.random.randint(len(image_label_pairs))
+            pair = image_label_pairs[idx]
+
+            # load image and object list
+            img = cv2.imread(pair[0])
+            img = cv2.resize(img, (in_y, in_x))  # opencv wants (width, height) in numpy, y corresponds to width
+            objects = parse_labels(pair[1])
+
+            # yolo expects bounding boxes in the [x, y, w, h] format
+            # this is the format in the label files
+            # the augmentations need boxes in [x_min, y_min, x_max, y_max]
+            # this is also the format used by tensorflow
+            objects_minmax = wh_to_minmax(objects)
+
+            # apply augmentations
+            # the config dictionary is only used here
+            img, objects_minmax = augment(img, objects_minmax, **config)
+
+            # convert back to the format desired by yolo
+            objects = minmax_to_wh(objects_minmax)
+
+            # store the objects for further processing
+            object_list.append(objects)
+
+            batch[batch_index] = img
+
+        return batch, object_list
+
     def __next__(self):
         """
         create augmented training data
@@ -219,48 +274,12 @@ class Augmenter:
         # threshold to attribute object to box
         IoU_threshold = self.IoU_threshold
 
-        config = self.config
+        batch, object_list = self.get_augmented_batch()
 
-        # get a list of pairs of (image_path, label_path)
-        image_label_pairs = self.image_label_pairs
-
-        # this is the batch fed to the network
-        # only this is actual input to the forward pass
-        # the other numpy arrays are for the calculation of the loss
-        batch = np.zeros((batch_size, in_x, in_y, 3))
-
-        # first we load all the images for this batch
-        # the objects within the image are just stored in a list
-        # this is a list of lists: one list for each image
-        object_list = []
-
-        # fill the batch
-        for b in range(batch_size):
-            idx = np.random.randint(len(image_label_pairs))
-            pair = image_label_pairs[idx]
-
-            # load image and object list
-            img = cv2.imread(pair[0])
-            img = cv2.resize(img, (in_y, in_x))  # opencv wants (width, height) in numpy, y corresponds to width
-            objects = parse_labels(pair[1])
-
-            # yolo expects bounding boxes in the [x, y, w, h] format
-            # this is the format in the label files
-            # the augmentations need boxes in [x_min, y_min, x_max, y_max]
-            # this is also the format used by tensorflow
-            objects_minmax = wh_to_minmax(objects)
-
-            # apply augmentations
-            # the config dictionary is only used here
-            img, objects_minmax = augment(img, objects_minmax, **config)
-
-            # convert back to the format desired by yolo
-            objects = minmax_to_wh(objects_minmax)
-
-            # store the objects for further processing
-            object_list.append(objects)
-
-            batch[b] = img
+        # the batch is the input of the network, so the data that is fed for the forward pass is ready now
+        # but we still need the data for the loss formulation
+        # there is a loss function which expects a blob of data
+        #
 
         # now we have a list of lists for the objects
         # for every sample in the batch, there is a list of objects contained in this sample
