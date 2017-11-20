@@ -415,7 +415,7 @@ class Augmenter:
         # we want the objects to be evenly distributed
         # if there is a layer, which is never responsible for predicting an object,
         # then this layer is useless
-        debug_output = True
+        debug_output = False
         if debug_output:
             assignment_count = [0 for layer_index in range(self.num_outputs)]
             for batch_index in range(self.batch_size):

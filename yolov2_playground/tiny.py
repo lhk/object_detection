@@ -149,8 +149,8 @@ train_path = "/home/lars/data/darknet/VOC/train.txt"
 test_path = "/home/lars/data/darknet/VOC/2007_test.txt"
 # iterator class to provide data to model.fit_generator
 # from ssd.ssd_generator import generate
-from ssd_playground.mixed_generator import Augmenter
-from lib.preprocessing import preprocess_vgg16, postprocess_vgg16
+from yolov2_playground.mixed_generator import Augmenter
+from lib.preprocessing import preprocess_yolo, postprocess_yolo
 
 # anchor boxes are taken from the tiny yolo voc config
 anchors = np.zeros((B, 2))
@@ -165,8 +165,8 @@ anchors[:,1]= temp
 
 batch_size = 64
 
-train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
-test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
+train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_yolo)
+test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_yolo)
 
 
 # # Loss function
@@ -289,7 +289,7 @@ for i in tqdm(range(50)):
     # get some sample data
     batch = next(test_gen)
     imgs = batch[0]
-    imgs = postprocess_vgg16(imgs)
+    imgs = postprocess_yolo(imgs)
 
     blobs = batch[1]
 
