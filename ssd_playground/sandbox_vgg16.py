@@ -122,7 +122,7 @@ num_outputs = len(scale_list)
 lambda_coords = 10
 lambda_class = 2
 lambda_obj = 5
-lambda_noobj = 0.05
+lambda_noobj = 0.5
 
 # ### Set up the training data
 # Follow the guide on the darknet side to set up VOC:
@@ -145,7 +145,7 @@ from lib.preprocessing import preprocess_vgg16, postprocess_vgg16
 anchors = np.zeros((B, 2))
 anchors[:] = [[0.9, 0.35], [0.8, 0.45], [0.6, 0.6], [0.45, 0.8], [0.35,0.9]]
 
-batch_size = 16
+batch_size = 14
 
 train_gen =  Augmenter(train_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
 test_gen =  Augmenter(test_path, in_x, in_y, out_x_list, out_y_list, scale_list, anchors, B, C, batch_size, preprocess_vgg16)
@@ -190,7 +190,7 @@ from keras.callbacks import  ModelCheckpoint
 
 training = True
 if training:
-    detection_model.compile(Adam(lr=0.000001), loss=loss_functions)
+    detection_model.compile(Adam(lr=0.00001), loss=loss_functions)
 
 
     # detection_model.compile(SGD(lr=1e-4, momentum=0.9, decay = 1e-7), loss)
@@ -219,11 +219,11 @@ if training:
     nan_terminator = TerminateOnNaN()
     checkpoint_callback = ModelCheckpoint("models/checkpoints/weights.{epoch:02d}-{loss:.2f}-{val_loss:.2f}.hdf5",
                                           monitor='val_loss', verbose=0, save_best_only=False,
-                                          save_weights_only=True, mode='auto', period=5)
+                                          save_weights_only=True, mode='auto', period=2)
 
     training_results = detection_model.fit_generator(generator = train_gen,
                                             steps_per_epoch = 30,
-                                            epochs=400,
+                                            epochs=200,
                                             callbacks=[nan_terminator, checkpoint_callback],
                                             validation_data=test_gen,
                                             validation_steps=30,
@@ -246,7 +246,7 @@ else:
     # with open("models/detection_model.json") as json_file:
     #    json_string = json_file.read()
     #    detection_model = model_from_json(json_string)
-    detection_model.load_weights("models/checkpoints/weights.73-501.93.hdf5")
+    detection_model.load_weights("models/checkpoints/weights.99-540.66-535.19.hdf5")
 
 # # Evaluation
 
